@@ -562,6 +562,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "bevy_fluid_sim"
+version = "0.1.0"
+dependencies = [
+ "bevy",
+ "bevy_egui",
+ "rand",
+ "rayon",
+ "uuid",
+]
+
+[[package]]
 name = "bevy_gilrs"
 version = "0.13.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -755,17 +766,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a0d7ef7f2a826d0b19f059035831ce00a5e930435cc53c61e045773d0483f67a"
 dependencies = [
  "glam",
-]
-
-[[package]]
-name = "bevy_particles"
-version = "0.1.0"
-dependencies = [
- "bevy",
- "bevy_egui",
- "rand",
- "rayon",
- "uuid",
 ]
 
 [[package]]
