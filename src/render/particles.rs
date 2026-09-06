@@ -8,7 +8,7 @@ use bevy::{
     },
 };
 
-use crate::sim::{Particle, Velocity, PARTICLE_RADIUS};
+use crate::sim::{Density, Particle, SimParams, Velocity, PARTICLE_RADIUS};
 
 use super::{MainCamera, RenderSettings, FIELD_LAYER};
 
@@ -19,6 +19,9 @@ const COLOR_STOPS: [Vec3; 3] = [
 ];
 const COLOR_MAX_SPEED: f32 = 150.0;
 const TEXTURE_SIZE: u32 = 32;
+const FOAM_SIZE: f32 = 1.6;
+/// Density below this fraction of target counts as spray.
+const FOAM_SPARSE: f32 = 0.6;
 
 pub struct ParticleRenderPlugin;
 
@@ -30,10 +33,15 @@ impl Plugin for ParticleRenderPlugin {
                 attach_sprites,
                 apply_render_mode.run_if(resource_changed::<RenderSettings>),
                 color_by_speed,
+                update_foam,
             ),
         );
     }
 }
+
+/// A particle's foam sprite, a child drawn above the surface.
+#[derive(Component)]
+struct Foam;
 
 #[derive(Resource)]
 pub struct ParticleAssets {
@@ -95,15 +103,33 @@ fn attach_sprites(
 ) {
     let (texture, size) = assets.sprite(&settings);
     for entity in &particles {
-        commands.entity(entity).insert((
-            Sprite {
-                custom_size: Some(Vec2::splat(size)),
-                ..default()
-            },
-            texture.clone(),
-            VisibilityBundle::default(),
-            RenderLayers::layer(FIELD_LAYER),
-        ));
+        commands
+            .entity(entity)
+            .insert((
+                Sprite {
+                    custom_size: Some(Vec2::splat(size)),
+                    ..default()
+                },
+                texture.clone(),
+                VisibilityBundle::default(),
+                RenderLayers::layer(FIELD_LAYER),
+            ))
+            .with_children(|parent| {
+                parent.spawn((
+                    SpriteBundle {
+                        texture: assets.dot.clone(),
+                        sprite: Sprite {
+                            color: Color::NONE,
+                            custom_size: Some(Vec2::splat(FOAM_SIZE)),
+                            ..default()
+                        },
+                        transform: Transform::from_xyz(0.0, 0.0, 0.5),
+                        ..default()
+                    },
+                    Foam,
+                    RenderLayers::layer(0),
+                ));
+            });
     }
 }
 
@@ -136,4 +162,36 @@ fn color_by_speed(mut particles: Query<(&Velocity, &mut Sprite)>) {
         let rgb = COLOR_STOPS[i].lerp(COLOR_STOPS[i + 1], scaled - i as f32);
         sprite.color = Color::rgb(rgb.x, rgb.y, rgb.z);
     });
+}
+
+fn update_foam(
+    mut foam: Query<(&Parent, &mut Sprite), With<Foam>>,
+    particles: Query<(&Velocity, &Density)>,
+    settings: Res<RenderSettings>,
+    params: Res<SimParams>,
+) {
+    let sparse_density = FOAM_SPARSE * params.target_density;
+
+    foam.par_iter_mut().for_each(|(parent, mut sprite)| {
+        let Ok((velocity, density)) = particles.get(parent.get()) else {
+            return;
+        };
+        let amount = if settings.foam {
+            let fast = smoothstep(
+                0.5 * settings.foam_speed,
+                settings.foam_speed,
+                velocity.0.length(),
+            );
+            let sparse = smoothstep(sparse_density, 0.5 * sparse_density, density.value);
+            fast.max(sparse) * settings.foam_opacity
+        } else {
+            0.0
+        };
+        sprite.color = Color::rgba(1.0, 1.0, 1.0, amount);
+    });
+}
+
+fn smoothstep(edge0: f32, edge1: f32, x: f32) -> f32 {
+    let t = ((x - edge0) / (edge1 - edge0)).clamp(0.0, 1.0);
+    t * t * (3.0 - 2.0 * t)
 }

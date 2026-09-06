@@ -82,6 +82,9 @@ fn draw_ui(
         ui.add(egui::Slider::new(&mut render.gradient_radius, 1.0..=24.0).text("Gradient Radius"));
         ui.add(egui::Slider::new(&mut render.lit_depth, 0.05..=1.0).text("Light Depth"));
         ui.add(egui::Slider::new(&mut render.glow, 0.0..=4.0).text("Glow"));
+        ui.checkbox(&mut render.foam, "Foam");
+        ui.add(egui::Slider::new(&mut render.foam_speed, 20.0..=300.0).text("Foam Speed"));
+        ui.add(egui::Slider::new(&mut render.foam_opacity, 0.0..=1.0).text("Foam Opacity"));
         ui.separator();
 
         if ui.button("Reset parameters").clicked() {

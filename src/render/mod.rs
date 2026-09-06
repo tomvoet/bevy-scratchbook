@@ -59,6 +59,10 @@ pub struct RenderSettings {
     pub gradient_radius: f32,
     pub lit_depth: f32,
     pub glow: f32,
+    pub foam: bool,
+    /// Speed at which a particle is fully foamy.
+    pub foam_speed: f32,
+    pub foam_opacity: f32,
 }
 
 impl Default for RenderSettings {
@@ -77,6 +81,9 @@ impl Default for RenderSettings {
             gradient_radius: 12.0,
             lit_depth: 0.5,
             glow: 1.0,
+            foam: true,
+            foam_speed: 90.0,
+            foam_opacity: 0.8,
         }
     }
 }

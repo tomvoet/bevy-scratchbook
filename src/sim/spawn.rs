@@ -52,7 +52,7 @@ pub fn reset(
         return;
     }
     for entity in &particles {
-        commands.entity(entity).despawn();
+        commands.entity(entity).despawn_recursive();
     }
     spawn_particles(&mut commands, params.spawn_layout);
 }
