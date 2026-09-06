@@ -1,0 +1,33 @@
+#import bevy_sprite::mesh2d_vertex_output::VertexOutput
+
+// x: inner half-extent, y: wall thickness, z: corner radius (fractions of quad)
+@group(2) @binding(0) var<uniform> shape: vec4<f32>;
+@group(2) @binding(1) var<uniform> fill_color: vec4<f32>;
+@group(2) @binding(2) var<uniform> wall_color: vec4<f32>;
+// x: 0 = fill, 1 = walls
+@group(2) @binding(3) var<uniform> style: vec4<f32>;
+
+fn rounded_box(p: vec2<f32>, half: vec2<f32>, radius: f32) -> f32 {
+    let q = abs(p) - half + vec2<f32>(radius);
+    return length(max(q, vec2<f32>(0.0))) + min(max(q.x, q.y), 0.0) - radius;
+}
+
+@fragment
+fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
+    let p = in.uv - vec2<f32>(0.5);
+    let aa = fwidth(p.x);
+    let inner = rounded_box(p, vec2<f32>(shape.x), shape.z);
+    let outer = inner - shape.y;
+
+    var alpha: f32;
+    var color: vec3<f32>;
+    if style.x < 0.5 {
+        alpha = 1.0 - smoothstep(-aa, aa, inner);
+        color = fill_color.rgb;
+    } else {
+        alpha = (1.0 - smoothstep(-aa, aa, outer)) * smoothstep(-aa, aa, inner);
+        color = wall_color.rgb;
+    }
+
+    return vec4<f32>(color, alpha);
+}

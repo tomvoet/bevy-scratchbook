@@ -1,0 +1,137 @@
+use bevy::{
+    ecs::schedule::common_conditions::resource_changed,
+    prelude::*,
+    render::{
+        render_asset::RenderAssetUsages,
+        render_resource::{Extent3d, TextureDimension, TextureFormat},
+        view::RenderLayers,
+    },
+};
+
+use crate::sim::{Particle, PARTICLE_RADIUS};
+
+use super::{MainCamera, RenderSettings, FIELD_LAYER};
+
+const COLOR_STOPS: [Vec3; 3] = [
+    Vec3::new(0.08, 0.35, 1.0),
+    Vec3::new(0.35, 0.85, 1.0),
+    Vec3::new(0.95, 1.0, 1.0),
+];
+const COLOR_MAX_SPEED: f32 = 150.0;
+const TEXTURE_SIZE: u32 = 32;
+
+pub struct ParticleRenderPlugin;
+
+impl Plugin for ParticleRenderPlugin {
+    fn build(&self, app: &mut App) {
+        app.add_systems(Startup, setup_assets).add_systems(
+            Update,
+            (
+                attach_sprites,
+                apply_render_mode.run_if(resource_changed::<RenderSettings>),
+                color_by_speed,
+            ),
+        );
+    }
+}
+
+#[derive(Resource)]
+pub struct ParticleAssets {
+    dot: Handle<Image>,
+    blob: Handle<Image>,
+}
+
+impl ParticleAssets {
+    fn sprite(&self, settings: &RenderSettings) -> (Handle<Image>, f32) {
+        if settings.show_surface {
+            (self.blob.clone(), settings.blob_size)
+        } else {
+            (self.dot.clone(), 2.0 * PARTICLE_RADIUS)
+        }
+    }
+}
+
+fn setup_assets(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
+    commands.insert_resource(ParticleAssets {
+        dot: images.add(radial_texture(|d| (1.0 - d) * TEXTURE_SIZE as f32 / 2.0 + 0.5)),
+        blob: images.add(radial_texture(|d| (1.0 - d * d).powi(2))),
+    });
+}
+
+/// White with alpha `falloff(d)`, `d` in 0..1 from centre to edge.
+fn radial_texture(falloff: impl Fn(f32) -> f32) -> Image {
+    let center = TEXTURE_SIZE as f32 / 2.0;
+
+    let mut data = Vec::with_capacity((TEXTURE_SIZE * TEXTURE_SIZE * 4) as usize);
+    for y in 0..TEXTURE_SIZE {
+        for x in 0..TEXTURE_SIZE {
+            let offset = Vec2::new(x as f32 + 0.5 - center, y as f32 + 0.5 - center);
+            let d = (offset.length() / center).min(1.0);
+            let alpha = falloff(d).clamp(0.0, 1.0);
+            data.extend_from_slice(&[255, 255, 255, (alpha * 255.0) as u8]);
+        }
+    }
+
+    Image::new(
+        Extent3d {
+            width: TEXTURE_SIZE,
+            height: TEXTURE_SIZE,
+            depth_or_array_layers: 1,
+        },
+        TextureDimension::D2,
+        data,
+        TextureFormat::Rgba8UnormSrgb,
+        RenderAssetUsages::RENDER_WORLD,
+    )
+}
+
+fn attach_sprites(
+    mut commands: Commands,
+    particles: Query<Entity, Added<Particle>>,
+    assets: Res<ParticleAssets>,
+    settings: Res<RenderSettings>,
+) {
+    let (texture, size) = assets.sprite(&settings);
+    for entity in &particles {
+        commands.entity(entity).insert((
+            Sprite {
+                custom_size: Some(Vec2::splat(size)),
+                ..default()
+            },
+            texture.clone(),
+            VisibilityBundle::default(),
+            RenderLayers::layer(FIELD_LAYER),
+        ));
+    }
+}
+
+fn apply_render_mode(
+    settings: Res<RenderSettings>,
+    assets: Res<ParticleAssets>,
+    mut cameras: Query<&mut RenderLayers, With<MainCamera>>,
+    mut particles: Query<(&mut Handle<Image>, &mut Sprite), With<Particle>>,
+) {
+    for mut layers in &mut cameras {
+        *layers = if settings.show_surface {
+            RenderLayers::layer(0)
+        } else {
+            RenderLayers::from_layers(&[0, FIELD_LAYER])
+        };
+    }
+
+    let (texture, size) = assets.sprite(&settings);
+    for (mut handle, mut sprite) in &mut particles {
+        *handle = texture.clone();
+        sprite.custom_size = Some(Vec2::splat(size));
+    }
+}
+
+fn color_by_speed(mut particles: Query<(&Particle, &mut Sprite)>) {
+    particles.par_iter_mut().for_each(|(p, mut sprite)| {
+        let t = (p.velocity.length() / COLOR_MAX_SPEED).clamp(0.0, 1.0);
+        let scaled = t * (COLOR_STOPS.len() - 1) as f32;
+        let i = (scaled as usize).min(COLOR_STOPS.len() - 2);
+        let rgb = COLOR_STOPS[i].lerp(COLOR_STOPS[i + 1], scaled - i as f32);
+        sprite.color = Color::rgb(rgb.x, rgb.y, rgb.z);
+    });
+}
