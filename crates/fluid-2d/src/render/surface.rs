@@ -1,4 +1,5 @@
 use bevy::{
+    asset::embedded_asset,
     camera::{visibility::RenderLayers, ClearColorConfig, RenderTarget},
     ecs::schedule::common_conditions::resource_changed,
     mesh::Mesh2d,
@@ -21,6 +22,7 @@ pub struct SurfacePlugin;
 
 impl Plugin for SurfacePlugin {
     fn build(&self, app: &mut App) {
+        embedded_asset!(app, "shaders/fluid_surface.wgsl");
         app.add_plugins(Material2dPlugin::<FluidSurfaceMaterial>::default())
             .add_systems(Startup, setup_surface)
             .add_systems(
@@ -56,7 +58,7 @@ impl Material2d for FluidSurfaceMaterial {
     }
 
     fn fragment_shader() -> ShaderRef {
-        "shaders/fluid_surface.wgsl".into()
+        "embedded://fluid_2d/render/shaders/fluid_surface.wgsl".into()
     }
 }
 

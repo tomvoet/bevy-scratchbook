@@ -1,0 +1,8 @@
+[package]
+name = "fluid-2d"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+bevy = { workspace = true, features = ["bevy_feathers"] }
+rand = { workspace = true }

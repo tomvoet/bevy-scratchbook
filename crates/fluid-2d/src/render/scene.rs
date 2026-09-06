@@ -1,5 +1,5 @@
 use bevy::{
-    asset::RenderAssetUsages,
+    asset::{embedded_asset, RenderAssetUsages},
     color::ColorToComponents,
     mesh::Mesh2d,
     prelude::*,
@@ -23,6 +23,7 @@ pub struct ScenePlugin;
 
 impl Plugin for ScenePlugin {
     fn build(&self, app: &mut App) {
+        embedded_asset!(app, "shaders/tank.wgsl");
         app.add_plugins(Material2dPlugin::<TankMaterial>::default())
             .add_systems(Startup, spawn_scene)
             .add_systems(Update, update_obstacles.run_if(obstacles_changed));
@@ -50,7 +51,7 @@ impl Material2d for TankMaterial {
     }
 
     fn fragment_shader() -> ShaderRef {
-        "shaders/tank.wgsl".into()
+        "embedded://fluid_2d/render/shaders/tank.wgsl".into()
     }
 }
 

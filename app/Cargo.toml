@@ -1,0 +1,11 @@
+[package]
+name = "sims"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+bevy = { workspace = true }
+fluid-2d = { path = "../crates/fluid-2d" }
+
+[features]
+dev = ["bevy/dynamic_linking"]

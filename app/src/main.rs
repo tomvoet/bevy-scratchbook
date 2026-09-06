@@ -1,15 +1,7 @@
-// The `AsBindGroup` derive on the materials needs more room than the default.
-#![recursion_limit = "256"]
-
 use bevy::{
     diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin},
     prelude::*,
 };
-
-mod input;
-mod render;
-mod sim;
-mod ui;
 
 fn main() {
     App::new()
@@ -23,10 +15,7 @@ fn main() {
             }),
             LogDiagnosticsPlugin::default(),
             FrameTimeDiagnosticsPlugin::default(),
-            sim::SimPlugin,
-            render::RenderPlugin,
-            ui::UiPlugin,
-            input::InputPlugin,
+            fluid_2d::FluidSimPlugin,
         ))
         .run();
 }
