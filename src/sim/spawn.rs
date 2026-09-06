@@ -2,14 +2,42 @@ use bevy::prelude::*;
 use rand::Rng;
 
 use super::{
-    bounds::BOUNDS, Particle, ParticleBundle, ResetParticles, SimParams, SpawnLayout, SPACING,
+    bounds::BOUNDS, Obstacle, Particle, ParticleBundle, ResetParticles, SimParams, SpawnLayout,
+    SPACING,
 };
 
 const DROP_SIZE: (usize, usize) = (80, 50);
 const DAM_SIZE: (usize, usize) = (50, 80);
+/// Preset pillars: centre and radius.
+const OBSTACLES: [(Vec2, f32); 2] = [
+    (Vec2::new(15.0, -75.0), 14.0),
+    (Vec2::new(65.0, -40.0), 9.0),
+];
 
 pub fn spawn_initial(mut commands: Commands, params: Res<SimParams>) {
     spawn_particles(&mut commands, params.spawn_layout);
+}
+
+pub fn sync_obstacles(
+    mut commands: Commands,
+    params: Res<SimParams>,
+    obstacles: Query<Entity, With<Obstacle>>,
+) {
+    if params.obstacles == !obstacles.is_empty() {
+        return;
+    }
+    if params.obstacles {
+        commands.spawn_batch(OBSTACLES.map(|(center, radius)| {
+            (
+                Obstacle { radius },
+                TransformBundle::from_transform(Transform::from_translation(center.extend(0.0))),
+            )
+        }));
+    } else {
+        for entity in &obstacles {
+            commands.entity(entity).despawn();
+        }
+    }
 }
 
 pub fn reset(

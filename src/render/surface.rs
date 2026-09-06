@@ -12,9 +12,12 @@ use bevy::{
     sprite::{Material2d, Material2dPlugin, MaterialMesh2dBundle},
 };
 
-use crate::sim::bounds::BOUNDS;
+use crate::sim::{bounds::BOUNDS, Obstacle};
 
-use super::{framed_camera, scene::CORNER_RADIUS, RenderSettings, FIELD_LAYER, VIEW_HEIGHT};
+use super::{
+    framed_camera, obstacle_uniform, obstacles_changed, scene::CORNER_RADIUS, RenderSettings,
+    FIELD_LAYER, MAX_OBSTACLES, VIEW_HEIGHT,
+};
 
 const FIELD_RESOLUTION: u32 = 1024;
 
@@ -26,7 +29,10 @@ impl Plugin for SurfacePlugin {
             .add_systems(Startup, setup_surface)
             .add_systems(
                 Update,
-                (toggle_surface, update_material).run_if(resource_changed::<RenderSettings>),
+                (
+                    (toggle_surface, update_material).run_if(resource_changed::<RenderSettings>),
+                    update_obstacles.run_if(obstacles_changed),
+                ),
             );
     }
 }
@@ -44,6 +50,8 @@ pub struct FluidSurfaceMaterial {
     lighting: Vec4,
     #[uniform(5)]
     style: Vec4,
+    #[uniform(6)]
+    obstacles: [Vec4; MAX_OBSTACLES],
 }
 
 impl Material2d for FluidSurfaceMaterial {
@@ -67,7 +75,8 @@ impl FluidSurfaceMaterial {
             s.shininess,
             1.0 / FIELD_RESOLUTION as f32,
         );
-        self.style = Vec4::new(CORNER_RADIUS / VIEW_HEIGHT, s.glow, 0.0, 0.0);
+        self.style.x = CORNER_RADIUS / VIEW_HEIGHT;
+        self.style.y = s.glow;
     }
 }
 
@@ -119,6 +128,7 @@ fn setup_surface(
         clip: Vec4::ZERO,
         lighting: Vec4::ZERO,
         style: Vec4::ZERO,
+        obstacles: [Vec4::ZERO; MAX_OBSTACLES],
     };
     material.apply(&settings);
     let material = materials.add(material);
@@ -155,5 +165,15 @@ fn update_material(
 ) {
     if let Some(material) = materials.get_mut(&handle.0) {
         material.apply(&settings);
+    }
+}
+
+fn update_obstacles(
+    obstacles: Query<(&Transform, &Obstacle)>,
+    handle: Res<SurfaceMaterialHandle>,
+    mut materials: ResMut<Assets<FluidSurfaceMaterial>>,
+) {
+    if let Some(material) = materials.get_mut(&handle.0) {
+        (material.obstacles, material.style.z) = obstacle_uniform(&obstacles);
     }
 }

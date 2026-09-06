@@ -4,7 +4,7 @@ use bevy::{
     render::{camera::ScalingMode, view::RenderLayers},
 };
 
-use crate::sim::bounds::BOUNDS;
+use crate::sim::{bounds::BOUNDS, Obstacle};
 
 pub mod particles;
 pub mod scene;
@@ -16,8 +16,33 @@ pub const VIEW_HEIGHT: f32 = BOUNDS * 2.0 + 50.0;
 pub const FIELD_LAYER: u8 = 1;
 const CLEAR_COLOR: Color = Color::rgb(0.015, 0.018, 0.03);
 
+/// Uniform array capacity for obstacle circles in the shaders.
+pub const MAX_OBSTACLES: usize = 8;
+
 #[derive(Component)]
 pub struct MainCamera;
+
+/// Obstacle circles as `(x, y, radius, 0)` in quad uv space, plus the count.
+pub fn obstacle_uniform(
+    obstacles: &Query<(&Transform, &Obstacle)>,
+) -> ([Vec4; MAX_OBSTACLES], f32) {
+    let mut circles = [Vec4::ZERO; MAX_OBSTACLES];
+    let mut count = 0;
+    for (transform, obstacle) in obstacles.iter().take(MAX_OBSTACLES) {
+        let p = transform.translation.truncate() / VIEW_HEIGHT;
+        circles[count] = Vec4::new(0.5 + p.x, 0.5 - p.y, obstacle.radius / VIEW_HEIGHT, 0.0);
+        count += 1;
+    }
+    (circles, count as f32)
+}
+
+/// Run condition: an obstacle was added, moved, or removed this frame.
+pub fn obstacles_changed(
+    changed: Query<(), (With<Obstacle>, Or<(Added<Obstacle>, Changed<Transform>)>)>,
+    mut removed: RemovedComponents<Obstacle>,
+) -> bool {
+    !changed.is_empty() || removed.read().next().is_some()
+}
 
 #[derive(Resource, Clone, Copy, PartialEq, Debug)]
 pub struct RenderSettings {

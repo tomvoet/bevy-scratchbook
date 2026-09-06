@@ -53,8 +53,19 @@ pub fn poly6(d: f32, h: f32) -> f32 {
     (h * h - d * d).powi(3) * scale
 }
 
-pub fn density_to_pressure(density: f32, target_density: f32, pressure_multiplier: f32) -> f32 {
-    pressure_multiplier * (density - target_density)
+/// `cohesion` scales the negative (attractive) side, below target density.
+pub fn density_to_pressure(
+    density: f32,
+    target_density: f32,
+    pressure_multiplier: f32,
+    cohesion: f32,
+) -> f32 {
+    let pressure = pressure_multiplier * (density - target_density);
+    if pressure < 0.0 {
+        pressure * cohesion
+    } else {
+        pressure
+    }
 }
 
 pub fn near_density_to_pressure(near_density: f32, near_pressure_multiplier: f32) -> f32 {

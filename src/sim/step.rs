@@ -7,7 +7,7 @@ use super::{
         density_to_pressure, near_density_to_pressure, poly6, spiky_pow2, spiky_pow2_derivative,
         spiky_pow3, spiky_pow3_derivative,
     },
-    CursorInteraction, Density, PredictedPosition, SimParams, Velocity,
+    CursorInteraction, Density, Obstacle, PredictedPosition, SimParams, Velocity,
 };
 
 const LOOKAHEAD: f32 = 1.0 / 120.0;
@@ -101,17 +101,18 @@ pub fn apply_pressure_forces(
     let dt = time.delta_seconds();
     let h = params.smoothing_radius;
     let mass = params.mass;
-    let (target, k, k_near) = (
+    let (target, k, k_near, cohesion) = (
         params.target_density,
         params.pressure_multiplier,
         params.near_pressure_multiplier,
+        params.cohesion,
     );
 
     particles
         .par_iter_mut()
         .for_each(|(entity, position, density, mut velocity)| {
             let position = position.0;
-            let pressure = density_to_pressure(density.value, target, k);
+            let pressure = density_to_pressure(density.value, target, k, cohesion);
             let near_pressure = near_density_to_pressure(density.near, k_near);
 
             let mut force = Vec2::ZERO;
@@ -127,8 +128,9 @@ pub fn apply_pressure_forces(
                     Vec2::from_angle(rand::random::<f32>() * std::f32::consts::TAU)
                 };
 
-                let shared_pressure =
-                    (pressure + density_to_pressure(other.density.value, target, k)) / 2.0;
+                let shared_pressure = (pressure
+                    + density_to_pressure(other.density.value, target, k, cohesion))
+                    / 2.0;
                 let shared_near_pressure =
                     (near_pressure + near_density_to_pressure(other.density.near, k_near)) / 2.0;
 
@@ -188,6 +190,40 @@ pub fn integrate(
                 params.wall_friction,
                 dt,
             );
+            transform.translation = position.extend(0.0);
+        });
+}
+
+pub fn collide_obstacles(
+    obstacles: Query<(&Transform, &Obstacle)>,
+    mut particles: Query<(&mut Transform, &mut Velocity), Without<Obstacle>>,
+    params: Res<SimParams>,
+    time: Res<Time>,
+) {
+    let circles: Vec<(Vec2, f32)> = obstacles
+        .iter()
+        .map(|(transform, obstacle)| (transform.translation.truncate(), obstacle.radius))
+        .collect();
+    if circles.is_empty() {
+        return;
+    }
+    let dt = time.delta_seconds();
+
+    particles
+        .par_iter_mut()
+        .for_each(|(mut transform, mut velocity)| {
+            let mut position = transform.translation.truncate();
+            for &(center, radius) in &circles {
+                bounds::resolve_circle_collision(
+                    &mut position,
+                    &mut velocity.0,
+                    center,
+                    radius,
+                    params.collision_damping,
+                    params.wall_friction,
+                    dt,
+                );
+            }
             transform.translation = position.extend(0.0);
         });
 }

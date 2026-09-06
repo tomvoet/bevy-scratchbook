@@ -1,48 +1,16 @@
-use bevy::{prelude::*, window::PrimaryWindow};
+use bevy::prelude::*;
 use bevy_egui::{egui, EguiContexts};
 
 use crate::{
-    render::{MainCamera, RenderSettings},
-    sim::{kernels::TARGET_DENSITY, CursorInteraction, ResetParticles, SimParams, SpawnLayout},
+    render::RenderSettings,
+    sim::{kernels::TARGET_DENSITY, ResetParticles, SimParams, SpawnLayout},
 };
 
 pub struct UiPlugin;
 
 impl Plugin for UiPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Update, (draw_ui, update_cursor_interaction).chain());
-    }
-}
-
-fn update_cursor_interaction(
-    mut cursor: ResMut<CursorInteraction>,
-    params: Res<SimParams>,
-    mouse: Res<ButtonInput<MouseButton>>,
-    windows: Query<&Window, With<PrimaryWindow>>,
-    cameras: Query<(&Camera, &GlobalTransform), With<MainCamera>>,
-    mut egui: EguiContexts,
-) {
-    let strength = if mouse.pressed(MouseButton::Left) {
-        params.interaction_strength
-    } else if mouse.pressed(MouseButton::Right) {
-        -params.interaction_strength
-    } else {
-        0.0
-    };
-
-    let (camera, camera_transform) = cameras.single();
-    let interaction = if strength == 0.0 || egui.ctx_mut().is_pointer_over_area() {
-        None
-    } else {
-        windows
-            .single()
-            .cursor_position()
-            .and_then(|position| camera.viewport_to_world_2d(camera_transform, position))
-            .map(|point| (point, strength))
-    };
-
-    if cursor.0 != interaction {
-        cursor.0 = interaction;
+        app.add_systems(Update, draw_ui);
     }
 }
 
@@ -58,13 +26,14 @@ fn draw_ui(
 
     egui::SidePanel::left("ui_panel").show(contexts.ctx_mut(), |ui| {
         ui.heading("Fluid");
-        ui.label("Left drag: pull. Right drag: push.");
+        ui.label("Left drag: pull. Right drag: push. Drag pillars to move them.");
         ui.separator();
 
         ui.horizontal(|ui| {
             ui.radio_value(&mut sim.spawn_layout, SpawnLayout::DamBreak, "Dam break");
             ui.radio_value(&mut sim.spawn_layout, SpawnLayout::Drop, "Drop");
         });
+        ui.checkbox(&mut sim.obstacles, "Obstacles");
         if ui.button("Reset particles (Space)").clicked() {
             reset.send_default();
         }
@@ -88,6 +57,7 @@ fn draw_ui(
                 .logarithmic(true)
                 .text("Near Pressure Multiplier"),
         );
+        ui.add(egui::Slider::new(&mut sim.cohesion, 0.0..=1.0).text("Cohesion"));
         ui.add(egui::Slider::new(&mut sim.viscosity, 0.0..=100.0).text("Viscosity"));
         ui.add(egui::Slider::new(&mut sim.collision_damping, 0.0..=1.0).text("Wall Bounce"));
         ui.add(egui::Slider::new(&mut sim.wall_friction, 0.0..=30.0).text("Wall Friction"));

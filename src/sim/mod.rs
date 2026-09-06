@@ -1,4 +1,4 @@
-use bevy::prelude::*;
+use bevy::{ecs::schedule::common_conditions::resource_changed, prelude::*};
 
 pub mod bounds;
 pub mod grid;
@@ -28,6 +28,12 @@ pub struct PredictedPosition(pub Vec2);
 pub struct Density {
     pub value: f32,
     pub near: f32,
+}
+
+/// A static circle particles collide with. Position is the `Transform`.
+#[derive(Component, Clone, Copy, Debug)]
+pub struct Obstacle {
+    pub radius: f32,
 }
 
 #[derive(Bundle, Default)]
@@ -65,6 +71,8 @@ pub struct SimParams {
     pub target_density: f32,
     pub pressure_multiplier: f32,
     pub near_pressure_multiplier: f32,
+    /// Strength of attraction below target density, 0..1.
+    pub cohesion: f32,
     pub viscosity: f32,
     pub collision_damping: f32,
     /// 1/s
@@ -74,6 +82,7 @@ pub struct SimParams {
     pub interaction_radius: f32,
     pub interaction_strength: f32,
     pub spawn_layout: SpawnLayout,
+    pub obstacles: bool,
 }
 
 impl Default for SimParams {
@@ -85,7 +94,10 @@ impl Default for SimParams {
             target_density: kernels::TARGET_DENSITY,
             // Stable at `SIM_HZ` up to roughly 400_000.
             pressure_multiplier: 300_000.0,
-            near_pressure_multiplier: 15_000.0,
+            near_pressure_multiplier: 8_000.0,
+            // Full-strength attraction lets a lifted pillar pull a column of
+            // water up with it; near pressure is lowered to match.
+            cohesion: 0.3,
             viscosity: 30.0,
             collision_damping: 0.8,
             wall_friction: 5.0,
@@ -93,6 +105,7 @@ impl Default for SimParams {
             interaction_radius: 30.0,
             interaction_strength: 500.0,
             spawn_layout: SpawnLayout::DamBreak,
+            obstacles: true,
         }
     }
 }
@@ -124,7 +137,13 @@ impl Plugin for SimPlugin {
             .insert_resource(Time::<Fixed>::from_hz(SIM_HZ))
             .insert_resource(Time::<Virtual>::from_max_delta(MAX_CATCH_UP))
             .add_systems(Startup, spawn::spawn_initial)
-            .add_systems(Update, spawn::reset)
+            .add_systems(
+                Update,
+                (
+                    spawn::reset,
+                    spawn::sync_obstacles.run_if(resource_changed::<SimParams>),
+                ),
+            )
             .configure_sets(
                 FixedUpdate,
                 (
@@ -150,7 +169,9 @@ impl Plugin for SimPlugin {
                     (step::apply_pressure_forces, step::apply_viscosity)
                         .chain()
                         .in_set(SimSet::Interactions),
-                    step::integrate.in_set(SimSet::Integrate),
+                    (step::integrate, step::collide_obstacles)
+                        .chain()
+                        .in_set(SimSet::Integrate),
                 ),
             );
     }

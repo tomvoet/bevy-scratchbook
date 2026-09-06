@@ -4,6 +4,7 @@ use bevy::{
 };
 use bevy_egui::EguiPlugin;
 
+mod input;
 mod render;
 mod sim;
 mod ui;
@@ -24,6 +25,7 @@ fn main() {
             sim::SimPlugin,
             render::RenderPlugin,
             ui::UiPlugin,
+            input::InputPlugin,
         ))
         .run();
 }
