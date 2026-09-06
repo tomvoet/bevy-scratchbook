@@ -1,11 +1,9 @@
 use bevy::{
+    asset::RenderAssetUsages,
+    camera::visibility::RenderLayers,
     ecs::schedule::common_conditions::resource_changed,
     prelude::*,
-    render::{
-        render_asset::RenderAssetUsages,
-        render_resource::{Extent3d, TextureDimension, TextureFormat},
-        view::RenderLayers,
-    },
+    render::render_resource::{Extent3d, TextureDimension, TextureFormat},
 };
 
 use crate::sim::{Density, Particle, SimParams, Velocity, PARTICLE_RADIUS};
@@ -107,25 +105,22 @@ fn attach_sprites(
             .entity(entity)
             .insert((
                 Sprite {
+                    image: texture.clone(),
                     custom_size: Some(Vec2::splat(size)),
                     ..default()
                 },
-                texture.clone(),
-                VisibilityBundle::default(),
+                Visibility::default(),
                 RenderLayers::layer(FIELD_LAYER),
             ))
             .with_children(|parent| {
                 parent.spawn((
-                    SpriteBundle {
-                        texture: assets.dot.clone(),
-                        sprite: Sprite {
-                            color: Color::NONE,
-                            custom_size: Some(Vec2::splat(FOAM_SIZE)),
-                            ..default()
-                        },
-                        transform: Transform::from_xyz(0.0, 0.0, 0.5),
+                    Sprite {
+                        image: assets.dot.clone(),
+                        color: Color::NONE,
+                        custom_size: Some(Vec2::splat(FOAM_SIZE)),
                         ..default()
                     },
+                    Transform::from_xyz(0.0, 0.0, 0.5),
                     Foam,
                     RenderLayers::layer(0),
                 ));
@@ -137,7 +132,7 @@ fn apply_render_mode(
     settings: Res<RenderSettings>,
     assets: Res<ParticleAssets>,
     mut cameras: Query<&mut RenderLayers, With<MainCamera>>,
-    mut particles: Query<(&mut Handle<Image>, &mut Sprite), With<Particle>>,
+    mut particles: Query<&mut Sprite, With<Particle>>,
 ) {
     for mut layers in &mut cameras {
         *layers = if settings.show_surface {
@@ -148,8 +143,8 @@ fn apply_render_mode(
     }
 
     let (texture, size) = assets.sprite(&settings);
-    for (mut handle, mut sprite) in &mut particles {
-        *handle = texture.clone();
+    for mut sprite in &mut particles {
+        sprite.image = texture.clone();
         sprite.custom_size = Some(Vec2::splat(size));
     }
 }
@@ -160,35 +155,47 @@ fn color_by_speed(mut particles: Query<(&Velocity, &mut Sprite)>) {
         let scaled = t * (COLOR_STOPS.len() - 1) as f32;
         let i = (scaled as usize).min(COLOR_STOPS.len() - 2);
         let rgb = COLOR_STOPS[i].lerp(COLOR_STOPS[i + 1], scaled - i as f32);
-        sprite.color = Color::rgb(rgb.x, rgb.y, rgb.z);
+        sprite.color = Color::srgb(rgb.x, rgb.y, rgb.z);
     });
 }
 
 fn update_foam(
-    mut foam: Query<(&Parent, &mut Sprite), With<Foam>>,
+    mut foam: Query<(&ChildOf, &mut Sprite, &mut Visibility), With<Foam>>,
     particles: Query<(&Velocity, &Density)>,
     settings: Res<RenderSettings>,
     params: Res<SimParams>,
 ) {
     let sparse_density = FOAM_SPARSE * params.target_density;
 
-    foam.par_iter_mut().for_each(|(parent, mut sprite)| {
-        let Ok((velocity, density)) = particles.get(parent.get()) else {
-            return;
-        };
-        let amount = if settings.foam {
-            let fast = smoothstep(
-                0.5 * settings.foam_speed,
-                settings.foam_speed,
-                velocity.0.length(),
-            );
-            let sparse = smoothstep(sparse_density, 0.5 * sparse_density, density.value);
-            fast.max(sparse) * settings.foam_opacity
-        } else {
-            0.0
-        };
-        sprite.color = Color::rgba(1.0, 1.0, 1.0, amount);
-    });
+    foam.par_iter_mut()
+        .for_each(|(child_of, mut sprite, mut visibility)| {
+            let Ok((velocity, density)) = particles.get(child_of.parent()) else {
+                return;
+            };
+            let amount = if settings.foam {
+                let fast = smoothstep(
+                    0.5 * settings.foam_speed,
+                    settings.foam_speed,
+                    velocity.0.length(),
+                );
+                let sparse = smoothstep(sparse_density, 0.5 * sparse_density, density.value);
+                fast.max(sparse) * settings.foam_opacity
+            } else {
+                0.0
+            };
+            // Invisible foam is hidden outright so the renderer never queues it.
+            let wanted = if amount > 0.01 {
+                Visibility::Inherited
+            } else {
+                Visibility::Hidden
+            };
+            if *visibility != wanted {
+                *visibility = wanted;
+            }
+            if amount > 0.01 {
+                sprite.color = Color::srgba(1.0, 1.0, 1.0, amount);
+            }
+        });
 }
 
 fn smoothstep(edge0: f32, edge1: f32, x: f32) -> f32 {

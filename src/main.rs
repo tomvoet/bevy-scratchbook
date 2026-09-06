@@ -1,8 +1,10 @@
+// The `AsBindGroup` derive on the materials needs more room than the default.
+#![recursion_limit = "256"]
+
 use bevy::{
     diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin},
     prelude::*,
 };
-use bevy_egui::EguiPlugin;
 
 mod input;
 mod render;
@@ -20,8 +22,7 @@ fn main() {
                 ..default()
             }),
             LogDiagnosticsPlugin::default(),
-            FrameTimeDiagnosticsPlugin,
-            EguiPlugin,
+            FrameTimeDiagnosticsPlugin::default(),
             sim::SimPlugin,
             render::RenderPlugin,
             ui::UiPlugin,

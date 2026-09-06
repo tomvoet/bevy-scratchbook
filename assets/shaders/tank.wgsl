@@ -1,13 +1,13 @@
 #import bevy_sprite::mesh2d_vertex_output::VertexOutput
 
 // x: inner half-extent, y: wall thickness, z: corner radius (fractions of quad)
-@group(2) @binding(0) var<uniform> shape: vec4<f32>;
-@group(2) @binding(1) var<uniform> fill_color: vec4<f32>;
-@group(2) @binding(2) var<uniform> wall_color: vec4<f32>;
+@group(#{MATERIAL_BIND_GROUP}) @binding(0) var<uniform> shape: vec4<f32>;
+@group(#{MATERIAL_BIND_GROUP}) @binding(1) var<uniform> fill_color: vec4<f32>;
+@group(#{MATERIAL_BIND_GROUP}) @binding(2) var<uniform> wall_color: vec4<f32>;
 // x: 0 = fill, 1 = walls, y: obstacle count
-@group(2) @binding(3) var<uniform> style: vec4<f32>;
+@group(#{MATERIAL_BIND_GROUP}) @binding(3) var<uniform> style: vec4<f32>;
 // (x, y, radius, 0) in uv space
-@group(2) @binding(4) var<uniform> obstacles: array<vec4<f32>, 16>;
+@group(#{MATERIAL_BIND_GROUP}) @binding(4) var<uniform> obstacles: array<vec4<f32>, 16>;
 
 fn rounded_box(p: vec2<f32>, half: vec2<f32>, radius: f32) -> f32 {
     let q = abs(p) - half + vec2<f32>(radius);

@@ -17,6 +17,8 @@ incremental = false
 debug = false
 
 [dependencies]
-bevy = { version = "0.13.2", features = ["dynamic_linking"] }
-bevy_egui = "0.27.0"
-rand = "0.8.5"
+bevy = { version = "0.19.1", features = ["bevy_feathers"] }
+rand = "0.10"
+
+[features]
+dev = ["bevy/dynamic_linking"]

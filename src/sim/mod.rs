@@ -51,7 +51,7 @@ impl Obstacle {
 /// At most this many are rendered; see `render::MAX_OBSTACLES`.
 pub const MAX_OBSTACLES: usize = 16;
 
-#[derive(Event, Clone, Copy)]
+#[derive(Message, Clone, Copy)]
 pub enum ObstacleCommand {
     ResetPreset,
     Clear,
@@ -63,23 +63,22 @@ pub struct ParticleBundle {
     pub velocity: Velocity,
     pub predicted_position: PredictedPosition,
     pub density: Density,
-    pub transform: TransformBundle,
+    pub transform: Transform,
 }
 
 impl ParticleBundle {
     pub fn at_rest(position: Vec2) -> Self {
         Self {
             predicted_position: PredictedPosition(position),
-            transform: TransformBundle::from_transform(Transform::from_translation(
-                position.extend(0.0),
-            )),
+            transform: Transform::from_translation(position.extend(0.0)),
             ..default()
         }
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
 pub enum SpawnLayout {
+    #[default]
     DamBreak,
     Drop,
 }
@@ -132,7 +131,7 @@ impl Default for SimParams {
     }
 }
 
-#[derive(Event, Default)]
+#[derive(Message, Default)]
 pub struct ResetParticles;
 
 /// Phases of one fixed simulation step, in order.
@@ -155,8 +154,8 @@ impl Plugin for SimPlugin {
         app.init_resource::<SimParams>()
             .init_resource::<CursorInteraction>()
             .init_resource::<grid::SpatialGrid>()
-            .add_event::<ResetParticles>()
-            .add_event::<ObstacleCommand>()
+            .add_message::<ResetParticles>()
+            .add_message::<ObstacleCommand>()
             .insert_resource(Time::<Fixed>::from_hz(SIM_HZ))
             .insert_resource(Time::<Virtual>::from_max_delta(MAX_CATCH_UP))
             .add_systems(Startup, spawn::spawn_initial)
@@ -183,9 +182,7 @@ impl Plugin for SimPlugin {
                     )
                         .chain()
                         .in_set(SimSet::Neighbours),
-                    (step::apply_pressure_forces, step::apply_viscosity)
-                        .chain()
-                        .in_set(SimSet::Interactions),
+                    step::apply_interactions.in_set(SimSet::Interactions),
                     (step::integrate, step::collide_obstacles)
                         .chain()
                         .in_set(SimSet::Integrate),

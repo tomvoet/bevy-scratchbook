@@ -1,21 +1,17 @@
 use bevy::{
+    camera::{visibility::RenderLayers, ClearColorConfig, RenderTarget},
     ecs::schedule::common_conditions::resource_changed,
+    mesh::Mesh2d,
     prelude::*,
-    render::{
-        camera::RenderTarget,
-        render_resource::{
-            AsBindGroup, Extent3d, ShaderRef, TextureDescriptor, TextureDimension, TextureFormat,
-            TextureUsages,
-        },
-        view::RenderLayers,
-    },
-    sprite::{Material2d, Material2dPlugin, MaterialMesh2dBundle},
+    render::render_resource::{AsBindGroup, TextureFormat},
+    shader::ShaderRef,
+    sprite_render::{AlphaMode2d, Material2d, Material2dPlugin, MeshMaterial2d},
 };
 
 use crate::sim::{bounds::BOUNDS, Obstacle};
 
 use super::{
-    framed_camera, obstacle_uniform, obstacles_changed, scene::CORNER_RADIUS, RenderSettings,
+    framed_projection, obstacle_uniform, obstacles_changed, scene::CORNER_RADIUS, RenderSettings,
     FIELD_LAYER, MAX_OBSTACLES, VIEW_HEIGHT,
 };
 
@@ -55,6 +51,10 @@ pub struct FluidSurfaceMaterial {
 }
 
 impl Material2d for FluidSurfaceMaterial {
+    fn alpha_mode(&self) -> AlphaMode2d {
+        AlphaMode2d::Blend
+    }
+
     fn fragment_shader() -> ShaderRef {
         "shaders/fluid_surface.wgsl".into()
     }
@@ -93,34 +93,24 @@ fn setup_surface(
     mut materials: ResMut<Assets<FluidSurfaceMaterial>>,
     settings: Res<RenderSettings>,
 ) {
-    let size = Extent3d {
-        width: FIELD_RESOLUTION,
-        height: FIELD_RESOLUTION,
-        depth_or_array_layers: 1,
-    };
-    let mut field = Image {
-        texture_descriptor: TextureDescriptor {
-            label: Some("fluid field"),
-            size,
-            dimension: TextureDimension::D2,
-            format: TextureFormat::Bgra8UnormSrgb,
-            mip_level_count: 1,
-            sample_count: 1,
-            usage: TextureUsages::TEXTURE_BINDING
-                | TextureUsages::COPY_DST
-                | TextureUsages::RENDER_ATTACHMENT,
-            view_formats: &[],
-        },
-        ..default()
-    };
-    field.resize(size);
-    let field = images.add(field);
+    let field = images.add(Image::new_target_texture(
+        FIELD_RESOLUTION,
+        FIELD_RESOLUTION,
+        TextureFormat::Bgra8UnormSrgb,
+        None,
+    ));
 
-    let mut field_camera = framed_camera();
-    field_camera.camera.order = -1;
-    field_camera.camera.target = RenderTarget::Image(field.clone());
-    field_camera.camera.clear_color = ClearColorConfig::Custom(Color::NONE);
-    commands.spawn((field_camera, RenderLayers::layer(FIELD_LAYER)));
+    commands.spawn((
+        Camera2d,
+        framed_projection(),
+        Camera {
+            order: -1,
+            clear_color: ClearColorConfig::Custom(Color::NONE),
+            ..default()
+        },
+        RenderTarget::Image(field.clone().into()),
+        RenderLayers::layer(FIELD_LAYER),
+    ));
 
     let mut material = FluidSurfaceMaterial {
         field,
@@ -135,12 +125,9 @@ fn setup_surface(
     commands.insert_resource(SurfaceMaterialHandle(material.clone()));
 
     commands.spawn((
-        MaterialMesh2dBundle {
-            mesh: meshes.add(Rectangle::new(VIEW_HEIGHT, VIEW_HEIGHT)).into(),
-            material,
-            transform: Transform::from_xyz(0.0, 0.0, -1.0),
-            ..default()
-        },
+        Mesh2d(meshes.add(Rectangle::new(VIEW_HEIGHT, VIEW_HEIGHT))),
+        MeshMaterial2d(material),
+        Transform::from_xyz(0.0, 0.0, -1.0),
         SurfaceQuad,
     ));
 }
@@ -163,7 +150,7 @@ fn update_material(
     handle: Res<SurfaceMaterialHandle>,
     mut materials: ResMut<Assets<FluidSurfaceMaterial>>,
 ) {
-    if let Some(material) = materials.get_mut(&handle.0) {
+    if let Some(mut material) = materials.get_mut(&handle.0) {
         material.apply(&settings);
     }
 }
@@ -173,7 +160,7 @@ fn update_obstacles(
     handle: Res<SurfaceMaterialHandle>,
     mut materials: ResMut<Assets<FluidSurfaceMaterial>>,
 ) {
-    if let Some(material) = materials.get_mut(&handle.0) {
+    if let Some(mut material) = materials.get_mut(&handle.0) {
         (material.obstacles, material.style.z) = obstacle_uniform(&obstacles);
     }
 }

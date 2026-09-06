@@ -3,19 +3,19 @@
 
 #import bevy_sprite::mesh2d_vertex_output::VertexOutput
 
-@group(2) @binding(0) var field_texture: texture_2d<f32>;
-@group(2) @binding(1) var field_sampler: sampler;
+@group(#{MATERIAL_BIND_GROUP}) @binding(0) var field_texture: texture_2d<f32>;
+@group(#{MATERIAL_BIND_GROUP}) @binding(1) var field_sampler: sampler;
 // x: threshold, y: edge softness, z: rim width, w: rim brightness
-@group(2) @binding(2) var<uniform> params: vec4<f32>;
+@group(#{MATERIAL_BIND_GROUP}) @binding(2) var<uniform> params: vec4<f32>;
 // x: tank half-extent (fraction of quad), y: normal strength,
 // z: gradient radius (texels), w: lit depth past the threshold
-@group(2) @binding(3) var<uniform> clip: vec4<f32>;
+@group(#{MATERIAL_BIND_GROUP}) @binding(3) var<uniform> clip: vec4<f32>;
 // x: diffuse strength, y: specular strength, z: shininess, w: texel size in uv
-@group(2) @binding(4) var<uniform> lighting: vec4<f32>;
+@group(#{MATERIAL_BIND_GROUP}) @binding(4) var<uniform> lighting: vec4<f32>;
 // x: corner radius (fraction of quad), y: glow, z: obstacle count
-@group(2) @binding(5) var<uniform> style: vec4<f32>;
+@group(#{MATERIAL_BIND_GROUP}) @binding(5) var<uniform> style: vec4<f32>;
 // (x, y, radius, 0) in uv space
-@group(2) @binding(6) var<uniform> obstacles: array<vec4<f32>, 16>;
+@group(#{MATERIAL_BIND_GROUP}) @binding(6) var<uniform> obstacles: array<vec4<f32>, 16>;
 
 fn rounded_box(p: vec2<f32>, half: vec2<f32>, radius: f32) -> f32 {
     let q = abs(p) - half + vec2<f32>(radius);

@@ -1,20 +1,21 @@
 use bevy::{
+    asset::RenderAssetUsages,
+    color::ColorToComponents,
+    mesh::Mesh2d,
     prelude::*,
-    render::{
-        render_asset::RenderAssetUsages,
-        render_resource::{AsBindGroup, Extent3d, ShaderRef, TextureDimension, TextureFormat},
-    },
-    sprite::{Material2d, Material2dPlugin, MaterialMesh2dBundle},
+    render::render_resource::{AsBindGroup, Extent3d, TextureDimension, TextureFormat},
+    shader::ShaderRef,
+    sprite_render::{AlphaMode2d, Material2d, Material2dPlugin, MeshMaterial2d},
 };
 
 use crate::sim::{bounds::BOUNDS, Obstacle};
 
 use super::{obstacle_uniform, obstacles_changed, MAX_OBSTACLES, VIEW_HEIGHT};
 
-const BACKGROUND_TOP: Color = Color::rgb(0.075, 0.09, 0.14);
-const BACKGROUND_BOTTOM: Color = Color::rgb(0.015, 0.018, 0.03);
-const TANK_FILL: Color = Color::rgb(0.05, 0.065, 0.1);
-const WALL_COLOR: Color = Color::rgb(0.55, 0.62, 0.72);
+const BACKGROUND_TOP: Color = Color::srgb(0.075, 0.09, 0.14);
+const BACKGROUND_BOTTOM: Color = Color::srgb(0.015, 0.018, 0.03);
+const TANK_FILL: Color = Color::srgb(0.05, 0.065, 0.1);
+const WALL_COLOR: Color = Color::srgb(0.55, 0.62, 0.72);
 pub const WALL_THICKNESS: f32 = 2.0;
 pub const CORNER_RADIUS: f32 = 6.0;
 
@@ -33,9 +34,9 @@ pub struct TankMaterial {
     #[uniform(0)]
     shape: Vec4,
     #[uniform(1)]
-    fill_color: Color,
+    fill_color: LinearRgba,
     #[uniform(2)]
-    wall_color: Color,
+    wall_color: LinearRgba,
     /// x: 0 = fill, 1 = walls; y: obstacle count.
     #[uniform(3)]
     style: Vec4,
@@ -44,6 +45,10 @@ pub struct TankMaterial {
 }
 
 impl Material2d for TankMaterial {
+    fn alpha_mode(&self) -> AlphaMode2d {
+        AlphaMode2d::Blend
+    }
+
     fn fragment_shader() -> ShaderRef {
         "shaders/tank.wgsl".into()
     }
@@ -58,8 +63,8 @@ impl TankMaterial {
                 CORNER_RADIUS / VIEW_HEIGHT,
                 0.0,
             ),
-            fill_color: TANK_FILL,
-            wall_color: WALL_COLOR,
+            fill_color: TANK_FILL.into(),
+            wall_color: WALL_COLOR.into(),
             style: Vec4::new(if walls { 1.0 } else { 0.0 }, 0.0, 0.0, 0.0),
             obstacles: [Vec4::ZERO; MAX_OBSTACLES],
         }
@@ -74,7 +79,7 @@ fn update_obstacles(
     handle: Res<WallMaterialHandle>,
     mut materials: ResMut<Assets<TankMaterial>>,
 ) {
-    if let Some(material) = materials.get_mut(&handle.0) {
+    if let Some(mut material) = materials.get_mut(&handle.0) {
         (material.obstacles, material.style.y) = obstacle_uniform(&obstacles);
     }
 }
@@ -85,15 +90,14 @@ pub fn spawn_scene(
     mut materials: ResMut<Assets<TankMaterial>>,
     mut images: ResMut<Assets<Image>>,
 ) {
-    commands.spawn(SpriteBundle {
-        texture: images.add(gradient_texture(BACKGROUND_TOP, BACKGROUND_BOTTOM)),
-        sprite: Sprite {
+    commands.spawn((
+        Sprite {
+            image: images.add(gradient_texture(BACKGROUND_TOP, BACKGROUND_BOTTOM)),
             custom_size: Some(Vec2::new(VIEW_HEIGHT * 4.0, VIEW_HEIGHT)),
             ..default()
         },
-        transform: Transform::from_xyz(0.0, 0.0, -5.0),
-        ..default()
-    });
+        Transform::from_xyz(0.0, 0.0, -5.0),
+    ));
 
     // Fill behind the fluid, walls above it.
     let quad = meshes.add(Rectangle::new(VIEW_HEIGHT, VIEW_HEIGHT));
@@ -102,18 +106,17 @@ pub fn spawn_scene(
         if walls {
             commands.insert_resource(WallMaterialHandle(material.clone()));
         }
-        commands.spawn(MaterialMesh2dBundle {
-            mesh: quad.clone().into(),
-            material,
-            transform: Transform::from_xyz(0.0, 0.0, z),
-            ..default()
-        });
+        commands.spawn((
+            Mesh2d(quad.clone()),
+            MeshMaterial2d(material),
+            Transform::from_xyz(0.0, 0.0, z),
+        ));
     }
 }
 
 fn gradient_texture(top: Color, bottom: Color) -> Image {
     const STEPS: u32 = 256;
-    let (top, bottom) = (top.rgba_to_vec4(), bottom.rgba_to_vec4());
+    let (top, bottom) = (top.to_srgba().to_vec4(), bottom.to_srgba().to_vec4());
 
     let mut data = Vec::with_capacity((STEPS * 4) as usize);
     for i in 0..STEPS {

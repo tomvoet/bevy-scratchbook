@@ -1,9 +1,9 @@
-use bevy::{prelude::*, window::PrimaryWindow};
-use bevy_egui::EguiContexts;
+use bevy::{picking::hover::Hovered, prelude::*, window::PrimaryWindow};
 
 use crate::{
     render::MainCamera,
     sim::{bounds::BOUNDS, spawn, CursorInteraction, Obstacle, SimParams, MAX_OBSTACLES},
+    ui::UiPanel,
 };
 
 pub struct InputPlugin;
@@ -23,11 +23,16 @@ fn cursor_world_position(
     windows: &Query<&Window, With<PrimaryWindow>>,
     cameras: &Query<(&Camera, &GlobalTransform), With<MainCamera>>,
 ) -> Option<Vec2> {
-    let (camera, camera_transform) = cameras.single();
+    let (camera, camera_transform) = cameras.single().ok()?;
     windows
         .single()
+        .ok()?
         .cursor_position()
-        .and_then(|position| camera.viewport_to_world_2d(camera_transform, position))
+        .and_then(|position| camera.viewport_to_world_2d(camera_transform, position).ok())
+}
+
+fn pointer_over_ui(panel: &Query<&Hovered, With<UiPanel>>) -> bool {
+    panel.iter().any(|hovered| hovered.0)
 }
 
 fn obstacle_under(
@@ -51,11 +56,11 @@ fn edit_obstacles(
     time: Res<Time>,
     windows: Query<&Window, With<PrimaryWindow>>,
     cameras: Query<(&Camera, &GlobalTransform), With<MainCamera>>,
-    mut egui: EguiContexts,
+    panel: Query<&Hovered, With<UiPanel>>,
     mut obstacles: Query<(Entity, &mut Transform, &mut Obstacle)>,
 ) {
     let cursor = cursor_world_position(&windows, &cameras);
-    let over_ui = egui.ctx_mut().is_pointer_over_area();
+    let over_ui = pointer_over_ui(&panel);
     let shift = keys.any_pressed([KeyCode::ShiftLeft, KeyCode::ShiftRight]);
 
     if let (Some(cursor), false) = (cursor, over_ui) {
@@ -84,7 +89,7 @@ fn edit_obstacles(
 
     // Any obstacle not being dragged is at rest.
     for (entity, _, mut obstacle) in &mut obstacles {
-        let dragged = drag.0.map_or(false, |(dragged, _)| dragged == entity);
+        let dragged = drag.0.is_some_and(|(dragged, _)| dragged == entity);
         if !dragged && obstacle.velocity != Vec2::ZERO {
             obstacle.velocity = Vec2::ZERO;
         }
@@ -98,7 +103,7 @@ fn edit_obstacles(
             if center != previous {
                 transform.translation = center.extend(0.0);
             }
-            let velocity = (center - previous) / time.delta_seconds().max(1e-6);
+            let velocity = (center - previous) / time.delta_secs().max(1e-6);
             if obstacle.velocity != velocity {
                 obstacle.velocity = velocity;
             }
@@ -106,6 +111,7 @@ fn edit_obstacles(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn update_cursor_interaction(
     mut cursor: ResMut<CursorInteraction>,
     drag: Res<DraggedObstacle>,
@@ -114,7 +120,7 @@ fn update_cursor_interaction(
     keys: Res<ButtonInput<KeyCode>>,
     windows: Query<&Window, With<PrimaryWindow>>,
     cameras: Query<(&Camera, &GlobalTransform), With<MainCamera>>,
-    mut egui: EguiContexts,
+    panel: Query<&Hovered, With<UiPanel>>,
     obstacles: Query<(Entity, &mut Transform, &mut Obstacle)>,
 ) {
     let strength = if mouse.pressed(MouseButton::Left) {
@@ -126,13 +132,10 @@ fn update_cursor_interaction(
     };
     let shift = keys.any_pressed([KeyCode::ShiftLeft, KeyCode::ShiftRight]);
     let point = cursor_world_position(&windows, &cameras);
-    let over_pillar = point.map_or(false, |p| obstacle_under(p, &obstacles).is_some());
+    let over_pillar = point.is_some_and(|p| obstacle_under(p, &obstacles).is_some());
 
-    let blocked = strength == 0.0
-        || shift
-        || over_pillar
-        || drag.0.is_some()
-        || egui.ctx_mut().is_pointer_over_area();
+    let blocked =
+        strength == 0.0 || shift || over_pillar || drag.0.is_some() || pointer_over_ui(&panel);
     let interaction = if blocked {
         None
     } else {

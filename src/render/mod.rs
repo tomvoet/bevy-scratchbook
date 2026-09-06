@@ -1,7 +1,8 @@
 use bevy::{
-    core_pipeline::bloom::BloomSettings,
+    camera::{visibility::RenderLayers, Hdr, OrthographicProjection, Projection, ScalingMode},
+    post_process::bloom::Bloom,
     prelude::*,
-    render::{camera::ScalingMode, view::RenderLayers},
+    ui::IsDefaultUiCamera,
 };
 
 use crate::sim::{bounds::BOUNDS, Obstacle};
@@ -13,8 +14,8 @@ pub mod surface;
 /// Visible height in world units; also the side length of the surface quad.
 pub const VIEW_HEIGHT: f32 = BOUNDS * 2.0 + 50.0;
 /// Particles live here; the field camera sees only this layer.
-pub const FIELD_LAYER: u8 = 1;
-const CLEAR_COLOR: Color = Color::rgb(0.015, 0.018, 0.03);
+pub const FIELD_LAYER: usize = 1;
+const CLEAR_COLOR: Color = Color::srgb(0.015, 0.018, 0.03);
 
 /// Uniform array capacity for obstacle circles in the shaders.
 pub const MAX_OBSTACLES: usize = crate::sim::MAX_OBSTACLES;
@@ -103,23 +104,27 @@ impl Plugin for RenderPlugin {
     }
 }
 
-/// A camera framing `VIEW_HEIGHT` world units around the origin.
-pub fn framed_camera() -> Camera2dBundle {
-    let mut camera = Camera2dBundle::default();
-    camera.projection.scaling_mode = ScalingMode::FixedVertical(VIEW_HEIGHT);
-    camera
+/// A projection framing `VIEW_HEIGHT` world units around the origin.
+pub fn framed_projection() -> Projection {
+    Projection::Orthographic(OrthographicProjection {
+        scaling_mode: ScalingMode::FixedVertical {
+            viewport_height: VIEW_HEIGHT,
+        },
+        ..OrthographicProjection::default_2d()
+    })
 }
 
 fn spawn_camera(mut commands: Commands) {
-    let mut camera = framed_camera();
-    camera.camera.hdr = true;
     commands.spawn((
-        camera,
-        BloomSettings {
+        Camera2d,
+        framed_projection(),
+        Hdr,
+        Bloom {
             intensity: 0.2,
-            ..BloomSettings::NATURAL
+            ..Bloom::NATURAL
         },
         MainCamera,
+        IsDefaultUiCamera,
         RenderLayers::layer(0),
     ));
 }

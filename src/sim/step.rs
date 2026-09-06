@@ -19,7 +19,7 @@ pub fn apply_external_forces(
     time: Res<Time>,
     cursor: Res<CursorInteraction>,
 ) {
-    let dt = time.delta_seconds();
+    let dt = time.delta_secs();
     let gravity = Vec2::new(0.0, -params.gravity);
     let interaction = cursor.0;
     let radius = params.interaction_radius;
@@ -92,30 +92,34 @@ pub fn calculate_densities(
         });
 }
 
-pub fn apply_pressure_forces(
+/// Pressure, near pressure, and viscosity in one neighbour sweep.
+pub fn apply_interactions(
     mut particles: Query<(Entity, &PredictedPosition, &Density, &mut Velocity)>,
     grid: Res<SpatialGrid>,
     params: Res<SimParams>,
     time: Res<Time>,
 ) {
-    let dt = time.delta_seconds();
+    let dt = time.delta_secs();
     let h = params.smoothing_radius;
     let mass = params.mass;
-    let (target, k, k_near, cohesion) = (
+    let (target, k, k_near, cohesion, viscosity) = (
         params.target_density,
         params.pressure_multiplier,
         params.near_pressure_multiplier,
         params.cohesion,
+        params.viscosity,
     );
 
     particles
         .par_iter_mut()
         .for_each(|(entity, position, density, mut velocity)| {
             let position = position.0;
+            let v = velocity.0;
             let pressure = density_to_pressure(density.value, target, k, cohesion);
             let near_pressure = near_density_to_pressure(density.near, k_near);
 
             let mut force = Vec2::ZERO;
+            let mut viscous = Vec2::ZERO;
 
             grid.for_each_neighbour(position, |other, distance| {
                 if other.entity == entity {
@@ -140,35 +144,11 @@ pub fn apply_pressure_forces(
                 force +=
                     direction * spiky_pow3_derivative(distance, h) * shared_near_pressure * mass
                         / other.density.near.max(MIN_DENSITY);
+                viscous += (other.velocity - v) * poly6(distance, h);
             });
 
-            let acceleration = force / density.value.max(MIN_DENSITY);
+            let acceleration = force / density.value.max(MIN_DENSITY) + viscous * viscosity;
             velocity.0 += acceleration * dt;
-        });
-}
-
-pub fn apply_viscosity(
-    mut particles: Query<(Entity, &PredictedPosition, &mut Velocity)>,
-    grid: Res<SpatialGrid>,
-    params: Res<SimParams>,
-    time: Res<Time>,
-) {
-    let dt = time.delta_seconds();
-    let h = params.smoothing_radius;
-
-    particles
-        .par_iter_mut()
-        .for_each(|(entity, position, mut velocity)| {
-            let v = velocity.0;
-            let mut force = Vec2::ZERO;
-
-            grid.for_each_neighbour(position.0, |other, distance| {
-                if other.entity != entity {
-                    force += (other.velocity - v) * poly6(distance, h);
-                }
-            });
-
-            velocity.0 += force * params.viscosity * dt;
         });
 }
 
@@ -177,7 +157,7 @@ pub fn integrate(
     time: Res<Time>,
     params: Res<SimParams>,
 ) {
-    let dt = time.delta_seconds();
+    let dt = time.delta_secs();
 
     particles
         .par_iter_mut()
@@ -207,7 +187,7 @@ pub fn collide_obstacles(
     if circles.is_empty() {
         return;
     }
-    let dt = time.delta_seconds();
+    let dt = time.delta_secs();
 
     particles
         .par_iter_mut()

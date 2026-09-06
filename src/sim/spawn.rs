@@ -1,5 +1,5 @@
 use bevy::prelude::*;
-use rand::Rng;
+use rand::RngExt;
 
 use super::{
     bounds::BOUNDS, Obstacle, ObstacleCommand, Particle, ParticleBundle, ResetParticles, SimParams,
@@ -22,7 +22,7 @@ pub fn spawn_initial(mut commands: Commands, params: Res<SimParams>) {
 pub fn spawn_obstacle(commands: &mut Commands, center: Vec2, radius: f32) {
     commands.spawn((
         Obstacle::new(radius),
-        TransformBundle::from_transform(Transform::from_translation(center.extend(0.0))),
+        Transform::from_translation(center.extend(0.0)),
     ));
 }
 
@@ -34,7 +34,7 @@ fn spawn_preset_obstacles(commands: &mut Commands) {
 
 pub fn handle_obstacle_commands(
     mut commands: Commands,
-    mut events: EventReader<ObstacleCommand>,
+    mut events: MessageReader<ObstacleCommand>,
     obstacles: Query<Entity, With<Obstacle>>,
 ) {
     for command in events.read() {
@@ -50,7 +50,7 @@ pub fn handle_obstacle_commands(
 pub fn reset(
     mut commands: Commands,
     keys: Res<ButtonInput<KeyCode>>,
-    mut events: EventReader<ResetParticles>,
+    mut events: MessageReader<ResetParticles>,
     params: Res<SimParams>,
     particles: Query<Entity, With<Particle>>,
 ) {
@@ -59,13 +59,13 @@ pub fn reset(
         return;
     }
     for entity in &particles {
-        commands.entity(entity).despawn_recursive();
+        commands.entity(entity).despawn();
     }
     spawn_particles(&mut commands, params.spawn_layout);
 }
 
 fn spawn_particles(commands: &mut Commands, layout: SpawnLayout) {
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
     let gap = 2.0 * SPACING;
 
     let ((w, h), center) = match layout {
@@ -83,7 +83,8 @@ fn spawn_particles(commands: &mut Commands, layout: SpawnLayout) {
     let mut bundles = Vec::with_capacity(w * h);
     for x in 0..w {
         for y in 0..h {
-            let jitter = Vec2::new(rng.gen_range(-0.1..0.1), rng.gen_range(-0.1..0.1)) * SPACING;
+            let jitter =
+                Vec2::new(rng.random_range(-0.1..0.1), rng.random_range(-0.1..0.1)) * SPACING;
             let position = Vec2::new(x as f32, y as f32) * SPACING - half + center + jitter;
             bundles.push(ParticleBundle::at_rest(position));
         }
