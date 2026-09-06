@@ -1,4 +1,4 @@
-use bevy::{ecs::schedule::common_conditions::resource_changed, prelude::*};
+use bevy::prelude::*;
 
 pub mod bounds;
 pub mod grid;
@@ -30,10 +30,31 @@ pub struct Density {
     pub near: f32,
 }
 
-/// A static circle particles collide with. Position is the `Transform`.
+/// A circle particles collide with. Position is the `Transform`; `velocity`
+/// is set while it is being dragged so it pushes fluid rather than
+/// teleporting through it.
 #[derive(Component, Clone, Copy, Debug)]
 pub struct Obstacle {
     pub radius: f32,
+    pub velocity: Vec2,
+}
+
+impl Obstacle {
+    pub fn new(radius: f32) -> Self {
+        Self {
+            radius,
+            velocity: Vec2::ZERO,
+        }
+    }
+}
+
+/// At most this many are rendered; see `render::MAX_OBSTACLES`.
+pub const MAX_OBSTACLES: usize = 16;
+
+#[derive(Event, Clone, Copy)]
+pub enum ObstacleCommand {
+    ResetPreset,
+    Clear,
 }
 
 #[derive(Bundle, Default)]
@@ -82,7 +103,8 @@ pub struct SimParams {
     pub interaction_radius: f32,
     pub interaction_strength: f32,
     pub spawn_layout: SpawnLayout,
-    pub obstacles: bool,
+    /// Radius for pillars placed with the mouse.
+    pub pillar_radius: f32,
 }
 
 impl Default for SimParams {
@@ -105,7 +127,7 @@ impl Default for SimParams {
             interaction_radius: 30.0,
             interaction_strength: 500.0,
             spawn_layout: SpawnLayout::DamBreak,
-            obstacles: true,
+            pillar_radius: 10.0,
         }
     }
 }
@@ -134,16 +156,11 @@ impl Plugin for SimPlugin {
             .init_resource::<CursorInteraction>()
             .init_resource::<grid::SpatialGrid>()
             .add_event::<ResetParticles>()
+            .add_event::<ObstacleCommand>()
             .insert_resource(Time::<Fixed>::from_hz(SIM_HZ))
             .insert_resource(Time::<Virtual>::from_max_delta(MAX_CATCH_UP))
             .add_systems(Startup, spawn::spawn_initial)
-            .add_systems(
-                Update,
-                (
-                    spawn::reset,
-                    spawn::sync_obstacles.run_if(resource_changed::<SimParams>),
-                ),
-            )
+            .add_systems(Update, (spawn::reset, spawn::handle_obstacle_commands))
             .configure_sets(
                 FixedUpdate,
                 (

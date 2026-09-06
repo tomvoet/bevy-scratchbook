@@ -3,7 +3,7 @@ use bevy_egui::{egui, EguiContexts};
 
 use crate::{
     render::RenderSettings,
-    sim::{kernels::TARGET_DENSITY, ResetParticles, SimParams, SpawnLayout},
+    sim::{kernels::TARGET_DENSITY, ObstacleCommand, ResetParticles, SimParams, SpawnLayout},
 };
 
 pub struct UiPlugin;
@@ -19,6 +19,7 @@ fn draw_ui(
     mut sim_params: ResMut<SimParams>,
     mut render_settings: ResMut<RenderSettings>,
     mut reset: EventWriter<ResetParticles>,
+    mut obstacle_commands: EventWriter<ObstacleCommand>,
 ) {
     // Edit copies so the resources are only marked changed when a value moved.
     let mut sim = *sim_params;
@@ -26,17 +27,26 @@ fn draw_ui(
 
     egui::SidePanel::left("ui_panel").show(contexts.ctx_mut(), |ui| {
         ui.heading("Fluid");
-        ui.label("Left drag: pull. Right drag: push. Drag pillars to move them.");
+        ui.label("Left drag: pull. Right drag: push.");
+        ui.label("Drag pillars to move them. Shift+click: add. Right-click: remove.");
         ui.separator();
 
         ui.horizontal(|ui| {
             ui.radio_value(&mut sim.spawn_layout, SpawnLayout::DamBreak, "Dam break");
             ui.radio_value(&mut sim.spawn_layout, SpawnLayout::Drop, "Drop");
         });
-        ui.checkbox(&mut sim.obstacles, "Obstacles");
         if ui.button("Reset particles (Space)").clicked() {
             reset.send_default();
         }
+        ui.horizontal(|ui| {
+            if ui.button("Reset pillars").clicked() {
+                obstacle_commands.send(ObstacleCommand::ResetPreset);
+            }
+            if ui.button("Clear pillars").clicked() {
+                obstacle_commands.send(ObstacleCommand::Clear);
+            }
+        });
+        ui.add(egui::Slider::new(&mut sim.pillar_radius, 3.0..=30.0).text("Pillar Radius"));
         ui.separator();
 
         ui.add(egui::Slider::new(&mut sim.gravity, 0.0..=300.0).text("Gravity"));

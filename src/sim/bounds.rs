@@ -4,12 +4,15 @@ use super::PARTICLE_RADIUS;
 
 pub const BOUNDS: f32 = 100.0;
 
-/// Keeps the particle outside a circle, with the same wall response.
+/// Keeps the particle outside a circle, with the same wall response,
+/// resolved in the frame of the circle so a moving circle pushes.
+#[allow(clippy::too_many_arguments)]
 pub fn resolve_circle_collision(
     position: &mut Vec2,
     velocity: &mut Vec2,
     center: Vec2,
     radius: f32,
+    surface_velocity: Vec2,
     damping: f32,
     friction: f32,
     dt: f32,
@@ -28,10 +31,11 @@ pub fn resolve_circle_collision(
     };
     *position = center + normal * limit;
 
-    let into = velocity.dot(normal);
-    let tangential = *velocity - normal * into;
+    let relative = *velocity - surface_velocity;
+    let into = relative.dot(normal);
+    let tangential = relative - normal * into;
     let bounced = if into < 0.0 { -into * damping } else { into };
-    *velocity = normal * bounced + tangential * (-friction * dt).exp();
+    *velocity = surface_velocity + normal * bounced + tangential * (-friction * dt).exp();
 }
 
 /// `friction` is a rate in 1/s, applied while in contact.

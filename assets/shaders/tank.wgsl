@@ -7,7 +7,7 @@
 // x: 0 = fill, 1 = walls, y: obstacle count
 @group(2) @binding(3) var<uniform> style: vec4<f32>;
 // (x, y, radius, 0) in uv space
-@group(2) @binding(4) var<uniform> obstacles: array<vec4<f32>, 8>;
+@group(2) @binding(4) var<uniform> obstacles: array<vec4<f32>, 16>;
 
 fn rounded_box(p: vec2<f32>, half: vec2<f32>, radius: f32) -> f32 {
     let q = abs(p) - half + vec2<f32>(radius);

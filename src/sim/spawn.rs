@@ -2,8 +2,8 @@ use bevy::prelude::*;
 use rand::Rng;
 
 use super::{
-    bounds::BOUNDS, Obstacle, Particle, ParticleBundle, ResetParticles, SimParams, SpawnLayout,
-    SPACING,
+    bounds::BOUNDS, Obstacle, ObstacleCommand, Particle, ParticleBundle, ResetParticles, SimParams,
+    SpawnLayout, SPACING,
 };
 
 const DROP_SIZE: (usize, usize) = (80, 50);
@@ -16,26 +16,33 @@ const OBSTACLES: [(Vec2, f32); 2] = [
 
 pub fn spawn_initial(mut commands: Commands, params: Res<SimParams>) {
     spawn_particles(&mut commands, params.spawn_layout);
+    spawn_preset_obstacles(&mut commands);
 }
 
-pub fn sync_obstacles(
+pub fn spawn_obstacle(commands: &mut Commands, center: Vec2, radius: f32) {
+    commands.spawn((
+        Obstacle::new(radius),
+        TransformBundle::from_transform(Transform::from_translation(center.extend(0.0))),
+    ));
+}
+
+fn spawn_preset_obstacles(commands: &mut Commands) {
+    for (center, radius) in OBSTACLES {
+        spawn_obstacle(commands, center, radius);
+    }
+}
+
+pub fn handle_obstacle_commands(
     mut commands: Commands,
-    params: Res<SimParams>,
+    mut events: EventReader<ObstacleCommand>,
     obstacles: Query<Entity, With<Obstacle>>,
 ) {
-    if params.obstacles == !obstacles.is_empty() {
-        return;
-    }
-    if params.obstacles {
-        commands.spawn_batch(OBSTACLES.map(|(center, radius)| {
-            (
-                Obstacle { radius },
-                TransformBundle::from_transform(Transform::from_translation(center.extend(0.0))),
-            )
-        }));
-    } else {
+    for command in events.read() {
         for entity in &obstacles {
             commands.entity(entity).despawn();
+        }
+        if let ObstacleCommand::ResetPreset = command {
+            spawn_preset_obstacles(&mut commands);
         }
     }
 }

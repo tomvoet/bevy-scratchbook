@@ -200,9 +200,9 @@ pub fn collide_obstacles(
     params: Res<SimParams>,
     time: Res<Time>,
 ) {
-    let circles: Vec<(Vec2, f32)> = obstacles
+    let circles: Vec<(Vec2, Obstacle)> = obstacles
         .iter()
-        .map(|(transform, obstacle)| (transform.translation.truncate(), obstacle.radius))
+        .map(|(transform, obstacle)| (transform.translation.truncate(), *obstacle))
         .collect();
     if circles.is_empty() {
         return;
@@ -213,12 +213,13 @@ pub fn collide_obstacles(
         .par_iter_mut()
         .for_each(|(mut transform, mut velocity)| {
             let mut position = transform.translation.truncate();
-            for &(center, radius) in &circles {
+            for &(center, obstacle) in &circles {
                 bounds::resolve_circle_collision(
                     &mut position,
                     &mut velocity.0,
                     center,
-                    radius,
+                    obstacle.radius,
+                    obstacle.velocity,
                     params.collision_damping,
                     params.wall_friction,
                     dt,

@@ -17,7 +17,7 @@ pub const FIELD_LAYER: u8 = 1;
 const CLEAR_COLOR: Color = Color::rgb(0.015, 0.018, 0.03);
 
 /// Uniform array capacity for obstacle circles in the shaders.
-pub const MAX_OBSTACLES: usize = 8;
+pub const MAX_OBSTACLES: usize = crate::sim::MAX_OBSTACLES;
 
 #[derive(Component)]
 pub struct MainCamera;
