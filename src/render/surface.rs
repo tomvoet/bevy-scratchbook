@@ -4,8 +4,8 @@ use bevy::{
     render::{
         camera::RenderTarget,
         render_resource::{
-            AsBindGroup, Extent3d, ShaderRef, TextureDescriptor, TextureDimension,
-            TextureFormat, TextureUsages,
+            AsBindGroup, Extent3d, ShaderRef, TextureDescriptor, TextureDimension, TextureFormat,
+            TextureUsages,
         },
         view::RenderLayers,
     },

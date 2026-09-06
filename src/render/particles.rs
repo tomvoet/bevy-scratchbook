@@ -8,7 +8,7 @@ use bevy::{
     },
 };
 
-use crate::sim::{Particle, PARTICLE_RADIUS};
+use crate::sim::{Particle, Velocity, PARTICLE_RADIUS};
 
 use super::{MainCamera, RenderSettings, FIELD_LAYER};
 
@@ -53,7 +53,9 @@ impl ParticleAssets {
 
 fn setup_assets(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
     commands.insert_resource(ParticleAssets {
-        dot: images.add(radial_texture(|d| (1.0 - d) * TEXTURE_SIZE as f32 / 2.0 + 0.5)),
+        dot: images.add(radial_texture(|d| {
+            (1.0 - d) * TEXTURE_SIZE as f32 / 2.0 + 0.5
+        })),
         blob: images.add(radial_texture(|d| (1.0 - d * d).powi(2))),
     });
 }
@@ -126,9 +128,9 @@ fn apply_render_mode(
     }
 }
 
-fn color_by_speed(mut particles: Query<(&Particle, &mut Sprite)>) {
-    particles.par_iter_mut().for_each(|(p, mut sprite)| {
-        let t = (p.velocity.length() / COLOR_MAX_SPEED).clamp(0.0, 1.0);
+fn color_by_speed(mut particles: Query<(&Velocity, &mut Sprite)>) {
+    particles.par_iter_mut().for_each(|(velocity, mut sprite)| {
+        let t = (velocity.0.length() / COLOR_MAX_SPEED).clamp(0.0, 1.0);
         let scaled = t * (COLOR_STOPS.len() - 1) as f32;
         let i = (scaled as usize).min(COLOR_STOPS.len() - 2);
         let rgb = COLOR_STOPS[i].lerp(COLOR_STOPS[i + 1], scaled - i as f32);

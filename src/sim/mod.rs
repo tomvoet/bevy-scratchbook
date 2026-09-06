@@ -13,20 +13,39 @@ pub const SIM_HZ: f64 = 240.0;
 /// Caps fixed-step catch-up so one slow frame can't snowball into a stall.
 const MAX_CATCH_UP: std::time::Duration = std::time::Duration::from_millis(50);
 
-#[derive(Debug, Default, Component, Clone)]
-pub struct Particle {
-    pub position: Vec2,
-    pub velocity: Vec2,
-    pub predicted_position: Vec2,
-    pub density: f32,
-    pub near_density: f32,
+/// Marker. Position is the `Transform`.
+#[derive(Component, Default)]
+pub struct Particle;
+
+#[derive(Component, Default, Clone, Copy, Debug)]
+pub struct Velocity(pub Vec2);
+
+/// Where the particle will be shortly; densities and forces are evaluated here.
+#[derive(Component, Default, Clone, Copy, Debug)]
+pub struct PredictedPosition(pub Vec2);
+
+#[derive(Component, Default, Clone, Copy, Debug)]
+pub struct Density {
+    pub value: f32,
+    pub near: f32,
 }
 
-impl Particle {
+#[derive(Bundle, Default)]
+pub struct ParticleBundle {
+    pub particle: Particle,
+    pub velocity: Velocity,
+    pub predicted_position: PredictedPosition,
+    pub density: Density,
+    pub transform: TransformBundle,
+}
+
+impl ParticleBundle {
     pub fn at_rest(position: Vec2) -> Self {
         Self {
-            position,
-            predicted_position: position,
+            predicted_position: PredictedPosition(position),
+            transform: TransformBundle::from_transform(Transform::from_translation(
+                position.extend(0.0),
+            )),
             ..default()
         }
     }
@@ -81,32 +100,58 @@ impl Default for SimParams {
 #[derive(Event, Default)]
 pub struct ResetParticles;
 
+/// Phases of one fixed simulation step, in order.
+#[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
+pub enum SimSet {
+    ExternalForces,
+    Neighbours,
+    Interactions,
+    Integrate,
+}
+
+/// Where the cursor is pulling (positive) or pushing (negative) this frame.
+#[derive(Resource, Default)]
+pub struct CursorInteraction(pub Option<(Vec2, f32)>);
+
 pub struct SimPlugin;
 
 impl Plugin for SimPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<SimParams>()
+            .init_resource::<CursorInteraction>()
             .init_resource::<grid::SpatialGrid>()
             .add_event::<ResetParticles>()
             .insert_resource(Time::<Fixed>::from_hz(SIM_HZ))
-            .add_systems(Startup, |mut time: ResMut<Time<Virtual>>| {
-                time.set_max_delta(MAX_CATCH_UP);
-            })
+            .insert_resource(Time::<Virtual>::from_max_delta(MAX_CATCH_UP))
             .add_systems(Startup, spawn::spawn_initial)
             .add_systems(Update, spawn::reset)
+            .configure_sets(
+                FixedUpdate,
+                (
+                    SimSet::ExternalForces,
+                    SimSet::Neighbours,
+                    SimSet::Interactions,
+                    SimSet::Integrate,
+                )
+                    .chain(),
+            )
             .add_systems(
                 FixedUpdate,
                 (
-                    step::apply_external_forces,
+                    step::apply_external_forces.in_set(SimSet::ExternalForces),
                     // Rebuilt after densities so the pressure pass sees them.
-                    step::build_grid,
-                    step::calculate_densities,
-                    step::build_grid,
-                    step::apply_pressure_forces,
-                    step::apply_viscosity,
-                    step::integrate,
-                )
-                    .chain(),
+                    (
+                        step::build_grid,
+                        step::calculate_densities,
+                        step::build_grid,
+                    )
+                        .chain()
+                        .in_set(SimSet::Neighbours),
+                    (step::apply_pressure_forces, step::apply_viscosity)
+                        .chain()
+                        .in_set(SimSet::Interactions),
+                    step::integrate.in_set(SimSet::Integrate),
+                ),
             );
     }
 }

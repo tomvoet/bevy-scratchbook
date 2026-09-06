@@ -1,7 +1,4 @@
-use bevy::{prelude::*, window::PrimaryWindow};
-use bevy_egui::EguiContexts;
-
-use crate::render::MainCamera;
+use bevy::prelude::*;
 
 use super::{
     bounds,
@@ -10,105 +7,93 @@ use super::{
         density_to_pressure, near_density_to_pressure, poly6, spiky_pow2, spiky_pow2_derivative,
         spiky_pow3, spiky_pow3_derivative,
     },
-    Particle, SimParams,
+    CursorInteraction, Density, PredictedPosition, SimParams, Velocity,
 };
 
 const LOOKAHEAD: f32 = 1.0 / 120.0;
 const MIN_DENSITY: f32 = 1e-4;
 
 pub fn apply_external_forces(
-    mut particles: Query<&mut Particle>,
+    mut particles: Query<(&Transform, &mut Velocity, &mut PredictedPosition)>,
     params: Res<SimParams>,
     time: Res<Time>,
-    mouse: Res<ButtonInput<MouseButton>>,
-    windows: Query<&Window, With<PrimaryWindow>>,
-    cameras: Query<(&Camera, &GlobalTransform), With<MainCamera>>,
-    mut egui: EguiContexts,
+    cursor: Res<CursorInteraction>,
 ) {
     let dt = time.delta_seconds();
     let gravity = Vec2::new(0.0, -params.gravity);
-
-    let interaction = if egui.ctx_mut().is_pointer_over_area() {
-        None
-    } else {
-        let strength = if mouse.pressed(MouseButton::Left) {
-            params.interaction_strength
-        } else if mouse.pressed(MouseButton::Right) {
-            -params.interaction_strength
-        } else {
-            0.0
-        };
-        let (camera, camera_transform) = cameras.single();
-        windows
-            .single()
-            .cursor_position()
-            .and_then(|cursor| camera.viewport_to_world_2d(camera_transform, cursor))
-            .filter(|_| strength != 0.0)
-            .map(|point| (point, strength))
-    };
+    let interaction = cursor.0;
     let radius = params.interaction_radius;
     let air_drag = params.air_drag;
 
-    particles.par_iter_mut().for_each(|mut p| {
-        // Quadratic drag mainly brakes fast thin splashes.
-        let mut acceleration = gravity - p.velocity * p.velocity.length() * air_drag;
+    particles
+        .par_iter_mut()
+        .for_each(|(transform, mut velocity, mut predicted)| {
+            let position = transform.translation.truncate();
+            let v = velocity.0;
+            // Quadratic drag mainly brakes fast thin splashes.
+            let mut acceleration = gravity - v * v.length() * air_drag;
 
-        if let Some((point, strength)) = interaction {
-            let offset = point - p.position;
-            let distance = offset.length();
-            if distance < radius {
-                let direction = if distance > 0.0 { offset / distance } else { Vec2::ZERO };
-                let falloff = 1.0 - distance / radius;
-                acceleration += (direction * strength - p.velocity) * falloff;
+            if let Some((point, strength)) = interaction {
+                let offset = point - position;
+                let distance = offset.length();
+                if distance < radius {
+                    let direction = if distance > 0.0 {
+                        offset / distance
+                    } else {
+                        Vec2::ZERO
+                    };
+                    let falloff = 1.0 - distance / radius;
+                    acceleration += (direction * strength - v) * falloff;
+                }
             }
-        }
 
-        p.velocity += acceleration * dt;
-        p.predicted_position = p.position + p.velocity * LOOKAHEAD;
-    });
+            velocity.0 += acceleration * dt;
+            predicted.0 = position + velocity.0 * LOOKAHEAD;
+        });
 }
 
 pub fn build_grid(
     mut grid: ResMut<SpatialGrid>,
-    particles: Query<(Entity, &Particle)>,
+    particles: Query<(Entity, &PredictedPosition, &Velocity, &Density)>,
     params: Res<SimParams>,
 ) {
     grid.rebuild(
         params.smoothing_radius,
-        particles.iter().map(|(entity, p)| GridEntry {
-            entity,
-            position: p.predicted_position,
-            velocity: p.velocity,
-            density: p.density,
-            near_density: p.near_density,
-        }),
+        particles
+            .iter()
+            .map(|(entity, position, velocity, density)| GridEntry {
+                entity,
+                position: position.0,
+                velocity: velocity.0,
+                density: *density,
+            }),
     );
 }
 
 pub fn calculate_densities(
-    mut particles: Query<&mut Particle>,
+    mut particles: Query<(&PredictedPosition, &mut Density)>,
     grid: Res<SpatialGrid>,
     params: Res<SimParams>,
 ) {
     let h = params.smoothing_radius;
     let mass = params.mass;
 
-    particles.par_iter_mut().for_each(|mut p| {
-        let mut density = 0.0;
-        let mut near_density = 0.0;
+    particles
+        .par_iter_mut()
+        .for_each(|(position, mut density)| {
+            let mut sum = Density::default();
 
-        grid.for_each_neighbour(p.predicted_position, |_, distance| {
-            density += mass * spiky_pow2(distance, h);
-            near_density += mass * spiky_pow3(distance, h);
+            grid.for_each_neighbour(position.0, |_, distance| {
+                sum.value += mass * spiky_pow2(distance, h);
+                sum.near += mass * spiky_pow3(distance, h);
+            });
+
+            *density = sum;
         });
-
-        p.density = density;
-        p.near_density = near_density;
-    });
 }
 
 pub fn apply_pressure_forces(
-    mut particles: Query<(Entity, &mut Particle)>,
+    mut particles: Query<(Entity, &PredictedPosition, &Density, &mut Velocity)>,
     grid: Res<SpatialGrid>,
     params: Res<SimParams>,
     time: Res<Time>,
@@ -122,42 +107,46 @@ pub fn apply_pressure_forces(
         params.near_pressure_multiplier,
     );
 
-    particles.par_iter_mut().for_each(|(entity, mut p)| {
-        let position = p.predicted_position;
-        let pressure = density_to_pressure(p.density, target, k);
-        let near_pressure = near_density_to_pressure(p.near_density, k_near);
+    particles
+        .par_iter_mut()
+        .for_each(|(entity, position, density, mut velocity)| {
+            let position = position.0;
+            let pressure = density_to_pressure(density.value, target, k);
+            let near_pressure = near_density_to_pressure(density.near, k_near);
 
-        let mut force = Vec2::ZERO;
+            let mut force = Vec2::ZERO;
 
-        grid.for_each_neighbour(position, |other, distance| {
-            if other.entity == entity {
-                return;
-            }
+            grid.for_each_neighbour(position, |other, distance| {
+                if other.entity == entity {
+                    return;
+                }
 
-            let direction = if distance > 0.0 {
-                (other.position - position) / distance
-            } else {
-                Vec2::from_angle(rand::random::<f32>() * std::f32::consts::TAU)
-            };
+                let direction = if distance > 0.0 {
+                    (other.position - position) / distance
+                } else {
+                    Vec2::from_angle(rand::random::<f32>() * std::f32::consts::TAU)
+                };
 
-            let shared_pressure = (pressure + density_to_pressure(other.density, target, k)) / 2.0;
-            let shared_near_pressure =
-                (near_pressure + near_density_to_pressure(other.near_density, k_near)) / 2.0;
+                let shared_pressure =
+                    (pressure + density_to_pressure(other.density.value, target, k)) / 2.0;
+                let shared_near_pressure =
+                    (near_pressure + near_density_to_pressure(other.density.near, k_near)) / 2.0;
 
-            // Derivatives are negative: positive pressure pushes away from `other`.
-            force += direction * spiky_pow2_derivative(distance, h) * shared_pressure * mass
-                / other.density.max(MIN_DENSITY);
-            force += direction * spiky_pow3_derivative(distance, h) * shared_near_pressure * mass
-                / other.near_density.max(MIN_DENSITY);
+                // Derivatives are negative: positive pressure pushes away from `other`.
+                force += direction * spiky_pow2_derivative(distance, h) * shared_pressure * mass
+                    / other.density.value.max(MIN_DENSITY);
+                force +=
+                    direction * spiky_pow3_derivative(distance, h) * shared_near_pressure * mass
+                        / other.density.near.max(MIN_DENSITY);
+            });
+
+            let acceleration = force / density.value.max(MIN_DENSITY);
+            velocity.0 += acceleration * dt;
         });
-
-        let acceleration = force / p.density.max(MIN_DENSITY);
-        p.velocity += acceleration * dt;
-    });
 }
 
 pub fn apply_viscosity(
-    mut particles: Query<(Entity, &mut Particle)>,
+    mut particles: Query<(Entity, &PredictedPosition, &mut Velocity)>,
     grid: Res<SpatialGrid>,
     params: Res<SimParams>,
     time: Res<Time>,
@@ -165,32 +154,40 @@ pub fn apply_viscosity(
     let dt = time.delta_seconds();
     let h = params.smoothing_radius;
 
-    particles.par_iter_mut().for_each(|(entity, mut p)| {
-        let position = p.predicted_position;
-        let velocity = p.velocity;
-        let mut force = Vec2::ZERO;
+    particles
+        .par_iter_mut()
+        .for_each(|(entity, position, mut velocity)| {
+            let v = velocity.0;
+            let mut force = Vec2::ZERO;
 
-        grid.for_each_neighbour(position, |other, distance| {
-            if other.entity != entity {
-                force += (other.velocity - velocity) * poly6(distance, h);
-            }
+            grid.for_each_neighbour(position.0, |other, distance| {
+                if other.entity != entity {
+                    force += (other.velocity - v) * poly6(distance, h);
+                }
+            });
+
+            velocity.0 += force * params.viscosity * dt;
         });
-
-        p.velocity += force * params.viscosity * dt;
-    });
 }
 
 pub fn integrate(
-    mut particles: Query<(&mut Particle, &mut Transform)>,
+    mut particles: Query<(&mut Transform, &mut Velocity)>,
     time: Res<Time>,
     params: Res<SimParams>,
 ) {
     let dt = time.delta_seconds();
 
-    particles.par_iter_mut().for_each(|(mut p, mut transform)| {
-        let step = p.velocity * dt;
-        p.position += step;
-        bounds::resolve_collision(&mut p, params.collision_damping, params.wall_friction, dt);
-        transform.translation = p.position.extend(0.0);
-    });
+    particles
+        .par_iter_mut()
+        .for_each(|(mut transform, mut velocity)| {
+            let mut position = transform.translation.truncate() + velocity.0 * dt;
+            bounds::resolve_collision(
+                &mut position,
+                &mut velocity.0,
+                params.collision_damping,
+                params.wall_friction,
+                dt,
+            );
+            transform.translation = position.extend(0.0);
+        });
 }

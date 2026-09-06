@@ -1,7 +1,9 @@
 use bevy::prelude::*;
 use rand::Rng;
 
-use super::{bounds::BOUNDS, Particle, ResetParticles, SimParams, SpawnLayout, SPACING};
+use super::{
+    bounds::BOUNDS, Particle, ParticleBundle, ResetParticles, SimParams, SpawnLayout, SPACING,
+};
 
 const DROP_SIZE: (usize, usize) = (80, 50);
 const DAM_SIZE: (usize, usize) = (50, 80);
@@ -48,10 +50,7 @@ fn spawn_particles(commands: &mut Commands, layout: SpawnLayout) {
         for y in 0..h {
             let jitter = Vec2::new(rng.gen_range(-0.1..0.1), rng.gen_range(-0.1..0.1)) * SPACING;
             let position = Vec2::new(x as f32, y as f32) * SPACING - half + center + jitter;
-            bundles.push((
-                Particle::at_rest(position),
-                TransformBundle::from_transform(Transform::from_translation(position.extend(0.0))),
-            ));
+            bundles.push(ParticleBundle::at_rest(position));
         }
     }
     commands.spawn_batch(bundles);

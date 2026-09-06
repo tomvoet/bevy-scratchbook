@@ -1,20 +1,52 @@
-use bevy::prelude::*;
+use bevy::{prelude::*, window::PrimaryWindow};
 use bevy_egui::{egui, EguiContexts};
 
 use crate::{
-    render::RenderSettings,
-    sim::{kernels::TARGET_DENSITY, ResetParticles, SimParams, SpawnLayout},
+    render::{MainCamera, RenderSettings},
+    sim::{kernels::TARGET_DENSITY, CursorInteraction, ResetParticles, SimParams, SpawnLayout},
 };
 
 pub struct UiPlugin;
 
 impl Plugin for UiPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Update, setup_ui);
+        app.add_systems(Update, (draw_ui, update_cursor_interaction).chain());
     }
 }
 
-fn setup_ui(
+fn update_cursor_interaction(
+    mut cursor: ResMut<CursorInteraction>,
+    params: Res<SimParams>,
+    mouse: Res<ButtonInput<MouseButton>>,
+    windows: Query<&Window, With<PrimaryWindow>>,
+    cameras: Query<(&Camera, &GlobalTransform), With<MainCamera>>,
+    mut egui: EguiContexts,
+) {
+    let strength = if mouse.pressed(MouseButton::Left) {
+        params.interaction_strength
+    } else if mouse.pressed(MouseButton::Right) {
+        -params.interaction_strength
+    } else {
+        0.0
+    };
+
+    let (camera, camera_transform) = cameras.single();
+    let interaction = if strength == 0.0 || egui.ctx_mut().is_pointer_over_area() {
+        None
+    } else {
+        windows
+            .single()
+            .cursor_position()
+            .and_then(|position| camera.viewport_to_world_2d(camera_transform, position))
+            .map(|point| (point, strength))
+    };
+
+    if cursor.0 != interaction {
+        cursor.0 = interaction;
+    }
+}
+
+fn draw_ui(
     mut contexts: EguiContexts,
     mut sim_params: ResMut<SimParams>,
     mut render_settings: ResMut<RenderSettings>,

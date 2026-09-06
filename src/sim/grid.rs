@@ -1,12 +1,13 @@
 use bevy::{prelude::*, utils::HashMap};
 
+use super::Density;
+
 #[derive(Clone, Copy, Debug)]
 pub struct GridEntry {
     pub entity: Entity,
     pub position: Vec2,
     pub velocity: Vec2,
-    pub density: f32,
-    pub near_density: f32,
+    pub density: Density,
 }
 
 /// Cell size equals the smoothing radius, so neighbours are in the 3x3 block.
