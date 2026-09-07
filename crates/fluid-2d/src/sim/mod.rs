@@ -7,9 +7,16 @@ pub mod spawn;
 pub mod step;
 
 pub const PARTICLE_RADIUS: f32 = 1.0;
-/// Grid spacing at spawn; the resting density and smoothing radius derive from it.
+/// Grid spacing at spawn. Resting density and smoothing radius come from it.
 pub const SPACING: f32 = 2.0;
+#[cfg(not(target_arch = "wasm32"))]
 pub const SIM_HZ: f64 = 240.0;
+/// Halved on the web: no threads there, so `par_iter_mut` runs serially.
+#[cfg(target_arch = "wasm32")]
+pub const SIM_HZ: f64 = 120.0;
+
+/// Stable stiffness scales with `SIM_HZ^2`, so the defaults follow the rate.
+pub const STIFFNESS: f32 = (SIM_HZ * SIM_HZ / (240.0 * 240.0)) as f32;
 /// Caps fixed-step catch-up so one slow frame can't snowball into a stall.
 const MAX_CATCH_UP: std::time::Duration = std::time::Duration::from_millis(50);
 
@@ -20,7 +27,7 @@ pub struct Particle;
 #[derive(Component, Default, Clone, Copy, Debug)]
 pub struct Velocity(pub Vec2);
 
-/// Where the particle will be shortly; densities and forces are evaluated here.
+/// Where the particle is headed. Densities and forces get evaluated here.
 #[derive(Component, Default, Clone, Copy, Debug)]
 pub struct PredictedPosition(pub Vec2);
 
@@ -30,9 +37,8 @@ pub struct Density {
     pub near: f32,
 }
 
-/// A circle particles collide with. Position is the `Transform`; `velocity`
-/// is set while it is being dragged so it pushes fluid rather than
-/// teleporting through it.
+/// A circle particles bounce off. Position is the `Transform`. `velocity` is
+/// set while you drag it, so it shoves fluid instead of teleporting through.
 #[derive(Component, Clone, Copy, Debug)]
 pub struct Obstacle {
     pub radius: f32,
@@ -48,7 +54,7 @@ impl Obstacle {
     }
 }
 
-/// At most this many are rendered; see `render::MAX_OBSTACLES`.
+/// Only this many get rendered. See `render::MAX_OBSTACLES`.
 pub const MAX_OBSTACLES: usize = 16;
 
 #[derive(Message, Clone, Copy)]
@@ -113,11 +119,11 @@ impl Default for SimParams {
             mass: kernels::MASS,
             smoothing_radius: kernels::SMOOTHING_RADIUS,
             target_density: kernels::TARGET_DENSITY,
-            // Stable at `SIM_HZ` up to roughly 400_000.
-            pressure_multiplier: 300_000.0,
-            near_pressure_multiplier: 8_000.0,
-            // Full-strength attraction lets a lifted pillar pull a column of
-            // water up with it; near pressure is lowered to match.
+            // Stable up to roughly 400_000 at 240 Hz.
+            pressure_multiplier: 300_000.0 * STIFFNESS,
+            near_pressure_multiplier: 8_000.0 * STIFFNESS,
+            // Full-strength attraction lets a lifted pillar drag a column of
+            // water up with it. Near pressure is lowered to match.
             cohesion: 0.3,
             viscosity: 30.0,
             collision_damping: 0.8,

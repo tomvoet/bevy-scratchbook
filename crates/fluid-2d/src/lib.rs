@@ -3,6 +3,7 @@
 
 use bevy::prelude::*;
 
+mod fps;
 mod input;
 mod render;
 mod sim;
@@ -15,6 +16,7 @@ impl Plugin for FluidSimPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins((
             sim::SimPlugin,
+            fps::FpsPlugin,
             render::RenderPlugin,
             ui::UiPlugin,
             input::InputPlugin,

@@ -9,3 +9,6 @@ fluid-2d = { path = "../crates/fluid-2d" }
 
 [features]
 dev = ["bevy/dynamic_linking"]
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+getrandom = { version = "0.4", features = ["wasm_js"] }

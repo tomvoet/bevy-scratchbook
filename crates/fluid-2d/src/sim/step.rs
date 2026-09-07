@@ -10,7 +10,7 @@ use super::{
     CursorInteraction, Density, Obstacle, PredictedPosition, SimParams, Velocity,
 };
 
-const LOOKAHEAD: f32 = 1.0 / 120.0;
+const LOOKAHEAD: f32 = (2.0 / super::SIM_HZ) as f32;
 const MIN_DENSITY: f32 = 1e-4;
 
 pub fn apply_external_forces(

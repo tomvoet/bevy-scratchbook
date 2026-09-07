@@ -26,7 +26,7 @@ fn luminance(c: vec3<f32>) -> f32 {
     return dot(c, vec3<f32>(0.2126, 0.7152, 0.0722));
 }
 
-// Upper left; uv.y points down.
+// Comes from the upper left. Watch out, uv.y points down.
 const LIGHT_DIR: vec3<f32> = vec3<f32>(-0.45, -0.65, 0.6);
 // Depth darkening, as a fraction of tank height from the top.
 const DEPTH_START: f32 = 0.45;

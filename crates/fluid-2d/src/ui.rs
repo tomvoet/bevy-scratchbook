@@ -19,7 +19,9 @@ use bevy::{
 
 use crate::{
     render::RenderSettings,
-    sim::{kernels::TARGET_DENSITY, ObstacleCommand, ResetParticles, SimParams, SpawnLayout},
+    sim::{
+        kernels::TARGET_DENSITY, ObstacleCommand, ResetParticles, SimParams, SpawnLayout, STIFFNESS,
+    },
 };
 
 const PANEL_WIDTH: f32 = 300.0;
@@ -130,15 +132,15 @@ const SIM_SLIDERS: &[SliderSpec] = &[
     ),
     sim(
         "Pressure Multiplier",
-        (10_000.0, 1_000_000.0),
-        10_000.0,
+        (10_000.0 * STIFFNESS, 1_000_000.0 * STIFFNESS),
+        10_000.0 * STIFFNESS,
         0,
         |p| &mut p.pressure_multiplier,
     ),
     sim(
         "Near Pressure Multiplier",
-        (100.0, 100_000.0),
-        100.0,
+        (100.0 * STIFFNESS, 100_000.0 * STIFFNESS),
+        100.0 * STIFFNESS,
         0,
         |p| &mut p.near_pressure_multiplier,
     ),

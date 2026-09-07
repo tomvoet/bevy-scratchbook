@@ -4,7 +4,8 @@ members = ["app", "crates/fluid-2d"]
 default-members = ["app"]
 
 [workspace.dependencies]
-bevy = "0.19.1"
+# Only what the app uses; the default set adds 3D, glTF, animation, and audio.
+bevy = { version = "0.19.1", default-features = false, features = ["2d", "ui", "bevy_feathers"] }
 rand = "0.10"
 
 [profile.dev]
@@ -15,6 +16,7 @@ opt-level = 3
 
 [profile.release]
 lto = true
+panic = "abort"
 opt-level = 3
 codegen-units = 1
 incremental = false

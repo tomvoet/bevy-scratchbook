@@ -11,9 +11,9 @@ pub mod particles;
 pub mod scene;
 pub mod surface;
 
-/// Visible height in world units; also the side length of the surface quad.
+/// How tall the view is in world units. The surface quad uses it too.
 pub const VIEW_HEIGHT: f32 = BOUNDS * 2.0 + 50.0;
-/// Particles live here; the field camera sees only this layer.
+/// Particles live here. The field camera only looks at this layer.
 pub const FIELD_LAYER: usize = 1;
 const CLEAR_COLOR: Color = Color::srgb(0.015, 0.018, 0.03);
 

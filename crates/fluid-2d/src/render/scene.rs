@@ -38,7 +38,7 @@ pub struct TankMaterial {
     fill_color: LinearRgba,
     #[uniform(2)]
     wall_color: LinearRgba,
-    /// x: 0 = fill, 1 = walls; y: obstacle count.
+    /// x: 0 = fill, 1 = walls. y: obstacle count.
     #[uniform(3)]
     style: Vec4,
     #[uniform(4)]
