@@ -8,23 +8,14 @@ fn main() {
                 ..default()
             }),
             fluid_2d::FluidSimPlugin,
+            fluid_2d::FeathersUiPlugin,
         ))
         .run();
 }
 
-#[cfg(not(target_arch = "wasm32"))]
 fn window() -> Window {
     Window {
         title: "Fluid Sim".into(),
-        ..default()
-    }
-}
-
-#[cfg(target_arch = "wasm32")]
-fn window() -> Window {
-    Window {
-        canvas: Some("#sim".into()),
-        fit_canvas_to_parent: true,
         ..default()
     }
 }

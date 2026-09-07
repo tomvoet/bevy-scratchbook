@@ -3,8 +3,12 @@ use bevy::{picking::hover::Hovered, prelude::*, window::PrimaryWindow};
 use crate::{
     render::MainCamera,
     sim::{bounds::BOUNDS, spawn, CursorInteraction, Obstacle, SimParams, MAX_OBSTACLES},
-    ui::UiPanel,
 };
+
+/// Root of the native panel. If it is `Hovered` it tells input to ignore clicks.
+/// On the web the leptos panel sits beside the canvas, so nothing matches.
+#[derive(Component, Default, Clone)]
+pub struct UiPanel;
 
 pub struct InputPlugin;
 

@@ -4,11 +4,8 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-bevy = { workspace = true }
+bevy = { workspace = true, features = ["ui", "bevy_feathers", "ui_picking", "mesh_picking"] }
 fluid-2d = { path = "../crates/fluid-2d" }
 
 [features]
 dev = ["bevy/dynamic_linking"]
-
-[target.'cfg(target_arch = "wasm32")'.dependencies]
-getrandom = { version = "0.4", features = ["wasm_js"] }

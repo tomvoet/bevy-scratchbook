@@ -1,0 +1,11 @@
+[package]
+name = "web"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+bevy = { workspace = true }
+console_error_panic_hook = "0.1"
+fluid-2d = { path = "../crates/fluid-2d" }
+getrandom = { version = "0.4", features = ["wasm_js"] }
+leptos = { version = "0.8.20", features = ["csr"] }

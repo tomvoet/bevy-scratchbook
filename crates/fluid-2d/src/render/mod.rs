@@ -2,7 +2,6 @@ use bevy::{
     camera::{visibility::RenderLayers, Hdr, OrthographicProjection, Projection, ScalingMode},
     post_process::bloom::Bloom,
     prelude::*,
-    ui::IsDefaultUiCamera,
 };
 
 use crate::sim::{bounds::BOUNDS, Obstacle};
@@ -115,16 +114,22 @@ pub fn framed_projection() -> Projection {
 }
 
 fn spawn_camera(mut commands: Commands) {
-    commands.spawn((
-        Camera2d,
-        framed_projection(),
-        Hdr,
-        Bloom {
-            intensity: 0.2,
-            ..Bloom::NATURAL
-        },
-        MainCamera,
-        IsDefaultUiCamera,
-        RenderLayers::layer(0),
-    ));
+    let _camera = commands
+        .spawn((
+            Camera2d,
+            framed_projection(),
+            Hdr,
+            Bloom {
+                intensity: 0.2,
+                ..Bloom::NATURAL
+            },
+            MainCamera,
+            RenderLayers::layer(0),
+        ))
+        .id();
+
+    #[cfg(not(target_arch = "wasm32"))]
+    commands
+        .entity(_camera)
+        .insert(bevy::ui::IsDefaultUiCamera);
 }

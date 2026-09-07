@@ -1,10 +1,19 @@
 [workspace]
 resolver = "2"
-members = ["app", "crates/fluid-2d"]
+members = ["app", "crates/fluid-2d", "web"]
 default-members = ["app"]
 
 [workspace.dependencies]
-bevy = { version = "0.19.1", default-features = false, features = ["2d", "ui", "bevy_feathers"] }
+# `2d` minus its ui bits, so the wasm build leaves bevy_ui out. Native adds
+# `ui`, `bevy_feathers` and `ui_picking` back per target.
+bevy = { version = "0.19.1", default-features = false, features = [
+    "default_app",
+    "default_platform",
+    "2d_bevy_render",
+    "scene",
+    "bevy_picking",
+    "sprite_picking",
+] }
 rand = "0.10"
 
 [profile.dev]

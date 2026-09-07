@@ -25,12 +25,13 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - uses: taiki-e/install-action@v2
         with:
-          tool: wasm-bindgen-cli@0.2.128
-      - run: sudo apt-get install -y libasound2-dev libudev-dev
-      - run: scripts/build-web.sh
+          tool: trunk
+      # Pages serves the project from a subpath, so assets need the prefix.
+      - run: trunk build --release --public-url /bevy-scratchbook/
+        working-directory: web
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: site
+          path: web/dist
 
   deploy:
     needs: build
