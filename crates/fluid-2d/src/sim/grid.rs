@@ -36,6 +36,8 @@ pub struct SpatialGrid {
     starts: Vec<u32>,
     cursor: Vec<u32>,
     scratch: Vec<GridEntry>,
+    /// Slot each entry landed in, in the order `rebuild` was given them.
+    order: Vec<u32>,
 }
 
 impl SpatialGrid {
@@ -63,13 +65,27 @@ impl SpatialGrid {
 
         self.entries.clear();
         self.entries.resize(scratch.len(), GridEntry::PLACEHOLDER);
+        self.order.clear();
         for entry in &scratch {
             let cell = self.cell_index(entry.position);
-            self.entries[self.cursor[cell] as usize] = *entry;
+            let slot = self.cursor[cell];
+            self.entries[slot as usize] = *entry;
             self.cursor[cell] += 1;
+            self.order.push(slot);
         }
 
         self.scratch = scratch;
+    }
+
+    pub fn slots(&self) -> &[u32] {
+        &self.order
+    }
+
+    /// Nothing moves between the two passes, so the sort still holds.
+    pub fn set_density(&mut self, slot: u32, density: Density) {
+        if let Some(entry) = self.entries.get_mut(slot as usize) {
+            entry.density = density;
+        }
     }
 
     /// Clamped, so a far particle lands in an edge cell. The radius check drops it.
@@ -113,7 +129,6 @@ mod tests {
     use super::*;
 
     fn points(n: usize) -> Vec<Vec2> {
-        // Deterministic scatter, some of it outside the tank.
         let mut seed = 0x2545_f491u32;
         let mut next = || {
             seed ^= seed << 13;
@@ -126,7 +141,6 @@ mod tests {
             .collect()
     }
 
-    /// Every point inside the radius is visited, nothing outside it.
     #[test]
     fn matches_brute_force() {
         for h in [1.0f32, 3.5, 6.0, 20.0] {
@@ -159,7 +173,35 @@ mod tests {
         }
     }
 
-    /// Buffers are reused, so a smaller rebuild must not leave stale entries.
+    #[test]
+    fn slots_point_at_the_right_entry() {
+        let positions = points(300);
+        let mut grid = SpatialGrid::default();
+        grid.rebuild(
+            6.0,
+            positions.iter().map(|&position| GridEntry {
+                position,
+                ..GridEntry::PLACEHOLDER
+            }),
+        );
+
+        let slots = grid.slots().to_vec();
+        assert_eq!(slots.len(), positions.len());
+        for (k, &slot) in slots.iter().enumerate() {
+            grid.set_density(
+                slot,
+                Density {
+                    value: k as f32,
+                    near: 0.0,
+                },
+            );
+        }
+        for (k, &slot) in slots.iter().enumerate() {
+            assert_eq!(grid.entries[slot as usize].position, positions[k]);
+            assert_eq!(grid.entries[slot as usize].density.value, k as f32);
+        }
+    }
+
     #[test]
     fn rebuild_drops_old_entries() {
         let mut grid = SpatialGrid::default();

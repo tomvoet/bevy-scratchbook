@@ -7,7 +7,7 @@ use super::{
         density_to_pressure, near_density_to_pressure, poly6, spiky_pow2, spiky_pow2_derivative,
         spiky_pow3, spiky_pow3_derivative,
     },
-    CursorInteraction, Density, Obstacle, PredictedPosition, SimParams, Velocity,
+    CursorInteraction, Density, GridSlot, Obstacle, PredictedPosition, SimParams, Velocity,
 };
 
 const LOOKAHEAD: f32 = (2.0 / super::SIM_HZ) as f32;
@@ -54,20 +54,31 @@ pub fn apply_external_forces(
 
 pub fn build_grid(
     mut grid: ResMut<SpatialGrid>,
-    particles: Query<(Entity, &PredictedPosition, &Velocity, &Density)>,
+    mut particles: Query<(Entity, &PredictedPosition, &Velocity, &Density, &mut GridSlot)>,
     params: Res<SimParams>,
 ) {
     grid.rebuild(
         params.smoothing_radius,
         particles
             .iter()
-            .map(|(entity, position, velocity, density)| GridEntry {
+            .map(|(entity, position, velocity, density, _)| GridEntry {
                 entity,
                 position: position.0,
                 velocity: velocity.0,
                 density: *density,
             }),
     );
+
+    // Same query as above, so the slots line up with it.
+    for (slot, (.., mut grid_slot)) in grid.slots().iter().zip(particles.iter_mut()) {
+        grid_slot.0 = *slot;
+    }
+}
+
+pub fn refresh_densities(mut grid: ResMut<SpatialGrid>, particles: Query<(&GridSlot, &Density)>) {
+    for (slot, density) in &particles {
+        grid.set_density(slot.0, *density);
+    }
 }
 
 pub fn calculate_densities(

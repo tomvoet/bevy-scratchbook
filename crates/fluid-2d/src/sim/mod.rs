@@ -32,6 +32,9 @@ pub struct Velocity(pub Vec2);
 pub struct PredictedPosition(pub Vec2);
 
 #[derive(Component, Default, Clone, Copy, Debug)]
+pub struct GridSlot(pub u32);
+
+#[derive(Component, Default, Clone, Copy, Debug)]
 pub struct Density {
     pub value: f32,
     pub near: f32,
@@ -69,6 +72,7 @@ pub struct ParticleBundle {
     pub velocity: Velocity,
     pub predicted_position: PredictedPosition,
     pub density: Density,
+    pub grid_slot: GridSlot,
     pub transform: Transform,
 }
 
@@ -180,11 +184,10 @@ impl Plugin for SimPlugin {
                 FixedUpdate,
                 (
                     step::apply_external_forces.in_set(SimSet::ExternalForces),
-                    // Rebuilt after densities so the pressure pass sees them.
                     (
                         step::build_grid,
                         step::calculate_densities,
-                        step::build_grid,
+                        step::refresh_densities,
                     )
                         .chain()
                         .in_set(SimSet::Neighbours),
