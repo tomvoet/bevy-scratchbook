@@ -20,7 +20,6 @@ fn window() -> Window {
     }
 }
 
-/// On the web, render into the page's canvas and follow its size.
 #[cfg(target_arch = "wasm32")]
 fn window() -> Window {
     Window {
