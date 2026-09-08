@@ -20,7 +20,7 @@ pub fn Shell() -> impl IntoView {
         <div class="flex h-screen w-screen">
             <Panel sender=sender />
             <main class="relative min-w-0 flex-1">
-                <canvas id="sim" class="block h-full w-full outline-none"></canvas>
+                <canvas id="sim" class="block h-full w-full touch-none outline-none"></canvas>
                 <Fps stats=stats />
             </main>
         </div>
