@@ -16,15 +16,33 @@ pub fn Shell() -> impl IntoView {
         }
     });
 
+    // Starts folded on a phone, where the panel would cover the sim.
+    let open = RwSignal::new(is_wide());
+
     view! {
-        <div class="flex h-screen w-screen">
-            <Panel sender=sender />
+        <div class="relative flex h-screen w-screen">
+            <Panel sender=sender open=open />
             <main class="relative min-w-0 flex-1">
                 <canvas id="sim" class="block h-full w-full touch-none outline-none"></canvas>
+                <button
+                    class="absolute left-3 top-2 rounded bg-slate-800/80 px-3 py-1.5 text-xs text-slate-200 hover:bg-slate-700"
+                    class=("hidden", move || open.get())
+                    on:click=move |_| open.set(true)
+                >
+                    "Controls"
+                </button>
                 <Fps stats=stats />
             </main>
         </div>
     }
+}
+
+fn is_wide() -> bool {
+    window()
+        .inner_width()
+        .ok()
+        .and_then(|width| width.as_f64())
+        .is_some_and(|width| width >= 640.0)
 }
 
 fn start_sim(bridge: fluid_2d::ControlBridgePlugin) {

@@ -16,13 +16,13 @@ impl Bus {
             params: RwSignal::new(Params::default()),
             sender,
         };
-        bus.sender.params(bus.params.get());
+        bus.sender.params(bus.params.get_untracked());
         bus
     }
 
     pub fn edit(&self, edit: impl FnOnce(&mut Params)) {
         self.params.update(edit);
-        self.sender.params(self.params.get());
+        self.sender.params(self.params.get_untracked());
     }
 
     pub fn act(&self, action: Action) {
