@@ -18,6 +18,7 @@ impl GridEntry {
         density: Density {
             value: 0.0,
             near: 0.0,
+            fluid: 0.0,
         },
     };
 }
@@ -193,6 +194,7 @@ mod tests {
                 Density {
                     value: k as f32,
                     near: 0.0,
+                    fluid: 0.0,
                 },
             );
         }

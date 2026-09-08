@@ -38,6 +38,9 @@ pub struct GridSlot(pub u32);
 pub struct Density {
     pub value: f32,
     pub near: f32,
+    /// `value` counting fluid neighbours only, so a droplet reads apart from
+    /// water that merely sits next to a surface.
+    pub fluid: f32,
 }
 
 /// A circle particles bounce off. Position is the `Transform`. `velocity` is
@@ -104,9 +107,6 @@ pub struct SimParams {
     /// Strength of attraction below target density, 0..1.
     pub cohesion: f32,
     pub viscosity: f32,
-    pub collision_damping: f32,
-    /// 1/s
-    pub wall_friction: f32,
     /// Acceleration is `-air_drag * |v| * v`.
     pub air_drag: f32,
     pub interaction_radius: f32,
@@ -130,8 +130,6 @@ impl Default for SimParams {
             // water up with it. Near pressure is lowered to match.
             cohesion: 0.3,
             viscosity: 30.0,
-            collision_damping: 0.8,
-            wall_friction: 5.0,
             air_drag: 0.006,
             interaction_radius: 30.0,
             interaction_strength: 500.0,
@@ -164,6 +162,7 @@ impl Plugin for SimPlugin {
         app.init_resource::<SimParams>()
             .init_resource::<CursorInteraction>()
             .init_resource::<grid::SpatialGrid>()
+            .init_resource::<bounds::Boundary>()
             .add_message::<ResetParticles>()
             .add_message::<ObstacleCommand>()
             .insert_resource(Time::<Fixed>::from_hz(SIM_HZ))
@@ -185,6 +184,7 @@ impl Plugin for SimPlugin {
                 (
                     step::apply_external_forces.in_set(SimSet::ExternalForces),
                     (
+                        step::sync_boundary,
                         step::build_grid,
                         step::calculate_densities,
                         step::refresh_densities,

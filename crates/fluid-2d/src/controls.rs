@@ -201,12 +201,6 @@ const FLUID: &[Control] = &[
     slider("viscosity", "Viscosity", (0.0, 100.0), 1.0, 0, |p| {
         &mut p.sim.viscosity
     }),
-    slider("wall_bounce", "Wall Bounce", (0.0, 1.0), 0.01, 2, |p| {
-        &mut p.sim.collision_damping
-    }),
-    slider("wall_friction", "Wall Friction", (0.0, 30.0), 0.5, 1, |p| {
-        &mut p.sim.wall_friction
-    }),
     slider("air_drag", "Air Drag", (0.0, 0.01), 0.0001, 4, |p| {
         &mut p.sim.air_drag
     }),
